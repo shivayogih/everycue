@@ -29,13 +29,3 @@ fun Double.quantityLabel(unit: String): String {
     return "$value $unit"
 }
 
-fun TrackItem.expiryMessage(todayEpochDay: Long = LocalDate.now().toEpochDay()): String {
-    val remaining = daysRemaining(todayEpochDay)
-    return when {
-        remaining < -1 -> "Expired ${-remaining} days ago"
-        remaining == -1L -> "Expired yesterday"
-        remaining == 0L -> "Expires today"
-        remaining == 1L -> "Expires tomorrow"
-        else -> "Expires in $remaining days"
-    }
-}

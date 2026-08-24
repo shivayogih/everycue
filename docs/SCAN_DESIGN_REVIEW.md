@@ -48,3 +48,4 @@ Google Play services' document scanner starts its own scanner UI flow and can re
 - building a custom CameraX/vision pipeline to match the PDF more closely.
 
 Scan remains documentation-only in the current EveryCue scope.
+

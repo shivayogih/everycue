@@ -10,13 +10,13 @@ import kotlinx.coroutines.flow.map
 
 class TrackRepository(
     private val database: EveryCueDatabase,
-) {
+) : TrackStore {
     private val dao = database.trackDao()
 
-    val items: Flow<List<TrackItem>> = dao.observeActiveItems().map { entities -> entities.map(TrackItemEntity::toModel) }
-    val events: Flow<List<TrackEvent>> = dao.observeEvents().map { entities -> entities.map(TrackEventEntity::toModel) }
+    override val items: Flow<List<TrackItem>> = dao.observeActiveItems().map { entities -> entities.map(TrackItemEntity::toModel) }
+    override val events: Flow<List<TrackEvent>> = dao.observeEvents().map { entities -> entities.map(TrackEventEntity::toModel) }
 
-    suspend fun save(draft: TrackDraft, itemId: String? = null): String {
+    override suspend fun save(draft: TrackDraft, itemId: String?): String {
         require(draft.name.isNotBlank()) { "Item name is required." }
         require(draft.quantity > 0) { "Quantity must be greater than zero." }
         require(draft.reminderDays >= 0) { "Reminder days cannot be negative." }
@@ -44,7 +44,7 @@ class TrackRepository(
         return id
     }
 
-    suspend fun markOutcome(itemId: String, outcome: TrackOutcome, note: String = "") {
+    override suspend fun markOutcome(itemId: String, outcome: TrackOutcome, note: String) {
         database.withTransaction {
             val item = dao.getItem(itemId) ?: return@withTransaction
             val now = System.currentTimeMillis()
@@ -69,11 +69,11 @@ class TrackRepository(
         }
     }
 
-    suspend fun delete(itemId: String) {
+    override suspend fun delete(itemId: String) {
         dao.getItem(itemId)?.let { dao.deleteItem(it) }
     }
 
-    suspend fun clearAll() {
+    override suspend fun clearAll() {
         database.withTransaction {
             dao.deleteAllEvents()
             dao.deleteAllItems()
@@ -109,3 +109,4 @@ private fun TrackEventEntity.toModel() = TrackEvent(
 
 private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
     runCatching { enumValueOf<T>(value) }.getOrDefault(default)
+

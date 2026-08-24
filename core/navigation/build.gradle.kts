@@ -28,3 +28,4 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
 }
+

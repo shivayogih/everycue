@@ -10,13 +10,13 @@ import kotlinx.coroutines.flow.map
 
 class RenewRepository(
     private val database: EveryCueDatabase,
-) {
+) : RenewStore {
     private val dao = database.renewalDao()
 
-    val renewals: Flow<List<RenewalItem>> = dao.observeActiveRenewals().map { rows -> rows.map(RenewalEntity::toModel) }
-    val events: Flow<List<RenewalEvent>> = dao.observeEvents().map { rows -> rows.map(RenewalEventEntity::toModel) }
+    override val renewals: Flow<List<RenewalItem>> = dao.observeActiveRenewals().map { rows -> rows.map(RenewalEntity::toModel) }
+    override val events: Flow<List<RenewalEvent>> = dao.observeEvents().map { rows -> rows.map(RenewalEventEntity::toModel) }
 
-    suspend fun save(draft: RenewalDraft, renewalId: String? = null): String {
+    override suspend fun save(draft: RenewalDraft, renewalId: String?): String {
         require(draft.title.isNotBlank()) { "Title is required." }
         require(draft.reminderDays >= 0) { "Reminder days cannot be negative." }
 
@@ -42,7 +42,7 @@ class RenewRepository(
         return id
     }
 
-    suspend fun markRenewed(renewalId: String, newDueEpochDay: Long, notes: String = "") {
+    override suspend fun markRenewed(renewalId: String, newDueEpochDay: Long, notes: String) {
         database.withTransaction {
             val existing = dao.getRenewal(renewalId) ?: return@withTransaction
             val now = System.currentTimeMillis()
@@ -68,11 +68,11 @@ class RenewRepository(
         }
     }
 
-    suspend fun delete(renewalId: String) {
+    override suspend fun delete(renewalId: String) {
         dao.getRenewal(renewalId)?.let { dao.deleteRenewal(it) }
     }
 
-    suspend fun clearAll() {
+    override suspend fun clearAll() {
         database.withTransaction {
             dao.deleteAllEvents()
             dao.deleteAllRenewals()
@@ -103,3 +103,4 @@ private fun RenewalEventEntity.toModel() = RenewalEvent(
     renewedAtMillis = renewedAtMillis,
     notes = notes,
 )
+

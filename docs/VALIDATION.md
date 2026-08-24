@@ -40,8 +40,8 @@ The two Pack source ZIPs were byte-identical. The project contained a useful sta
 
 - Preferences DataStore stores the entire Pack graph as JSON. This is acceptable for a small offline list, but Room should be considered if search, large-list queries, migrations, custom templates, and relational history expand.
 - UI text is still mostly hard-coded and must be moved into string resources before localization.
-- Repository errors need explicit UI states rather than uncaught coroutine failures.
-- Edit trip, item reorder, search/filter, custom templates, reminders, and sharing remain roadmap work.
+- User-authored templates and sharing remain roadmap work.
+- Text extraction to resources is still required before localization begins.
 
 ## Track validation
 
@@ -53,7 +53,7 @@ The Track plan is coherent and supports a real consumer utility. Its strongest d
 - Search, filters, categories, storage location, reminders, and insights
 - Typed Navigation 3 keys and notification deep links
 
-This foundation implements the core data lifecycle and basic local insights. Notifications, deep links, custom categories/locations, and advanced time-series analytics remain later milestones.
+The 0.2 offline release candidate adds notifications, deep links, aggregate local insights, backup/restore, and widgets. Custom categories/locations and advanced time-series charts remain later milestones.
 
 ## Renew working specification
 
@@ -72,7 +72,8 @@ This avoids expanding Renew into finance, payments, automatic subscription detec
 The full Android project was validated locally with Android Studio's JDK 21 runtime, Android SDK Platform 36, AGP 9.3.2, Kotlin 2.4.10, and the checked-in Gradle 9.5.0 wrapper. The following gate completed successfully:
 
 ```bash
-./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+./gradlew testDebugUnitTest lintDebug assembleDebug bundleRelease --no-daemon
 ```
 
-This covers the Track, Pack, and Renew unit checks, Android lint for every module, Room schema generation, and debug APK assembly. The GitHub Actions workflow repeats the same gate on pull requests and pushes to `main`.
+This covers unit checks, Android lint for every module, Room schema generation, debug APK assembly, and a minified unsigned release AAB. GitHub Actions repeats the same gate on pull requests and pushes to `main`.
+

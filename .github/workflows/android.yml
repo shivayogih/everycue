@@ -35,11 +35,18 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Unit tests, lint and debug build
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
+      - name: Unit tests, lint, APK and release bundle
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug bundleRelease --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
           name: everycue-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload unsigned release AAB
+        uses: actions/upload-artifact@v7
+        with:
+          name: everycue-release-aab-unsigned
+          path: app/build/outputs/bundle/release/app-release.aab
+

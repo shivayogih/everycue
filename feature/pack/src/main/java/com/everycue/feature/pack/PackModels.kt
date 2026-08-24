@@ -7,6 +7,11 @@ data class PackData(
     val trips: List<Trip> = emptyList(),
 )
 
+data class PackUiState(
+    val data: PackData = PackData(),
+    val isBusy: Boolean = false,
+)
+
 @Serializable
 data class Trip(
     val id: Long,
@@ -33,17 +38,8 @@ data class PackingItem(
 )
 
 @Serializable
-enum class PackingCategory(
-    val label: String,
-    val emoji: String,
-) {
-    DOCUMENTS("Documents", "🪪"),
-    CLOTHING("Clothing", "👕"),
-    TOILETRIES("Toiletries", "🧴"),
-    TECH("Tech", "🔌"),
-    HEALTH("Health", "🩹"),
-    ESSENTIALS("Essentials", "🎒"),
-    EXTRAS("Extras", "✨"),
+enum class PackingCategory(val emoji: String) {
+    DOCUMENTS("🪪"), CLOTHING("👕"), TOILETRIES("🧴"), TECH("🔌"), HEALTH("🩹"), ESSENTIALS("🎒"), EXTRAS("✨"),
 }
 
 data class TripDraft(
@@ -53,3 +49,4 @@ data class TripDraft(
     val endDateMillis: Long?,
     val templateId: String? = null,
 )
+

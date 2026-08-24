@@ -4,26 +4,16 @@ import java.time.LocalDate
 
 const val DEFAULT_TRACK_WARNING_DAYS = 7
 
-enum class TrackCategory(val label: String, val emoji: String) {
-    GROCERY("Grocery", "🥬"),
-    MEDICINE("Medicine", "💊"),
-    COSMETIC("Cosmetic", "🧴"),
-    HOUSEHOLD("Household", "🏠"),
-    SUPPLEMENT("Supplement", "🥤"),
-    OTHER("Other", "📦"),
+enum class TrackCategory(val emoji: String) {
+    GROCERY("🥬"), MEDICINE("💊"), COSMETIC("🧴"), HOUSEHOLD("🏠"), SUPPLEMENT("🥤"), OTHER("📦"),
 }
 
-enum class TrackOutcome(val label: String) {
-    CONSUMED("Consumed"),
-    DISCARDED("Discarded"),
-    DONATED("Donated"),
+enum class TrackOutcome {
+    CONSUMED, DISCARDED, DONATED,
 }
 
-enum class ExpiryState(val label: String) {
-    FRESH("Fresh"),
-    EXPIRING_SOON("Expiring soon"),
-    EXPIRES_TODAY("Expires today"),
-    EXPIRED("Expired"),
+enum class ExpiryState {
+    FRESH, EXPIRING_SOON, EXPIRES_TODAY, EXPIRED,
 }
 
 data class TrackItem(
@@ -79,6 +69,7 @@ data class TrackDraft(
 data class TrackUiState(
     val items: List<TrackItem> = emptyList(),
     val events: List<TrackEvent> = emptyList(),
+    val isBusy: Boolean = false,
 ) {
     val freshCount: Int
         get() {
@@ -109,3 +100,4 @@ data class TrackUiState(
             return if (decided == 0) 0 else (consumedCount * 100f / decided).toInt()
         }
 }
+

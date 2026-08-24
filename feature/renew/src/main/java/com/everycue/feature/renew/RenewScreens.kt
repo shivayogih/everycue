@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Delete
@@ -47,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,31 @@ import com.everycue.core.designsystem.EmptyState
 import com.everycue.core.designsystem.MetricCard
 import com.everycue.core.designsystem.SectionHeader
 import java.time.LocalDate
+
+@Composable
+private fun RenewalType.displayName(): String = stringResource(
+    when (this) {
+        RenewalType.DOCUMENT -> R.string.type_document
+        RenewalType.INSURANCE -> R.string.type_insurance
+        RenewalType.WARRANTY -> R.string.type_warranty
+        RenewalType.MEMBERSHIP -> R.string.type_membership
+        RenewalType.SUBSCRIPTION -> R.string.type_subscription
+        RenewalType.CERTIFICATE -> R.string.type_certificate
+        RenewalType.OTHER -> R.string.type_other
+    },
+)
+
+@Composable
+private fun RenewalItem.localizedDueMessage(): String {
+    val remaining = daysRemaining()
+    return when {
+        remaining < -1 -> stringResource(R.string.overdue_days, -remaining)
+        remaining == -1L -> stringResource(R.string.overdue_one_day)
+        remaining == 0L -> stringResource(R.string.due_today)
+        remaining == 1L -> stringResource(R.string.due_tomorrow)
+        else -> stringResource(R.string.due_in_days, remaining)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,28 +90,30 @@ fun RenewHomeScreen(
     onOpenAll: () -> Unit,
     onOpenRenewal: (String) -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenInsights: () -> Unit,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Renew", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.renew_title), fontWeight = FontWeight.Bold)
                         Text(
-                            "Keep important dates in view",
+                            stringResource(R.string.renew_tagline),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
                 actions = {
-                    IconButton(onClick = onOpenAll) { Icon(Icons.AutoMirrored.Filled.ViewList, contentDescription = "All renewals") }
-                    IconButton(onClick = onOpenHistory) { Icon(Icons.Default.History, contentDescription = "Renewal history") }
+                    IconButton(onClick = onOpenInsights) { Icon(Icons.Default.BarChart, contentDescription = stringResource(R.string.renewal_insights)) }
+                    IconButton(onClick = onOpenAll) { Icon(Icons.AutoMirrored.Filled.ViewList, contentDescription = stringResource(R.string.all_renewals)) }
+                    IconButton(onClick = onOpenHistory) { Icon(Icons.Default.History, contentDescription = stringResource(R.string.renewal_history)) }
                 },
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add renewal") })
+            ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.add_renewal)) })
         },
     ) { padding ->
         LazyColumn(
@@ -94,36 +123,83 @@ fun RenewHomeScreen(
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MetricCard("Overdue", state.overdueCount.toString(), Modifier.weight(1f))
-                    MetricCard("Due soon", state.dueSoonCount.toString(), Modifier.weight(1f))
-                    MetricCard("Upcoming", state.upcomingCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.overdue), state.overdueCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.due_soon), state.dueSoonCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.upcoming), state.upcomingCount.toString(), Modifier.weight(1f))
                 }
             }
             item {
                 SectionHeader(
-                    title = "Needs attention",
-                    action = { TextButton(onClick = onOpenAll) { Text("View all") } },
+                    title = stringResource(R.string.needs_attention),
+                    action = { TextButton(onClick = onOpenAll) { Text(stringResource(R.string.view_all)) } },
                 )
             }
             if (state.renewals.isEmpty()) {
                 item {
                     EmptyState(
-                        title = "No renewal dates yet",
-                        message = "Track passports, licences, insurance, warranties, memberships and other important due dates.",
-                        action = { Button(onClick = onAdd) { Text("Add first renewal") } },
+                        title = stringResource(R.string.no_renewals_title),
+                        message = stringResource(R.string.no_renewals_body),
+                        action = { Button(onClick = onAdd) { Text(stringResource(R.string.add_first_renewal)) } },
                     )
                 }
             } else if (state.urgent.isEmpty()) {
                 item {
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Nothing is due soon", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Your next renewal is outside its reminder window.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.nothing_due), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.nothing_due_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             } else {
                 items(state.urgent, key = RenewalItem::id) { item -> RenewalCard(item, { onOpenRenewal(item.id) }) }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RenewInsightsScreen(state: RenewUiState, onBack: () -> Unit) {
+    val mostCommon = state.renewals.groupingBy(RenewalItem::type).eachCount().entries
+        .sortedByDescending { it.value }
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.renewal_insights)) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MetricCard(stringResource(R.string.completed), state.events.size.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.active), state.renewals.size.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.at_risk), (state.overdueCount + state.dueSoonCount).toString(), Modifier.weight(1f))
+                }
+            }
+            item {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.active_by_type), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        if (mostCommon.isEmpty()) Text(stringResource(R.string.add_renewals_breakdown), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else mostCommon.forEach { (type, count) ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${type.emoji} ${type.displayName()}")
+                                Text(count.toString(), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(stringResource(R.string.schedule_health), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.schedule_summary, state.overdueCount, state.dueSoonCount, state.upcomingCount))
+                        Text(stringResource(R.string.local_calculation_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }
@@ -146,15 +222,15 @@ fun RenewListScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("All renewals") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
-        floatingActionButton = { ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.all_renewals)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
+        floatingActionButton = { ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.add)) }) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 108.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item { OutlinedTextField(query, { query = it }, label = { Text("Search title or provider") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(query, { query = it }, label = { Text(stringResource(R.string.search_title_provider)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
             item {
                 TypeChips(
                     selected = selectedType,
@@ -162,7 +238,7 @@ fun RenewListScreen(
                 )
             }
             if (visible.isEmpty()) {
-                item { EmptyState(if (renewals.isEmpty()) "No renewals" else "No matching renewals", "Add a due date or clear the current filters.") }
+                item { EmptyState(stringResource(if (renewals.isEmpty()) R.string.no_renewals else R.string.no_matching_renewals), stringResource(R.string.renewals_empty_body)) }
             } else {
                 items(visible, key = RenewalItem::id) { RenewalCard(it, { onOpen(it.id) }) }
             }
@@ -179,7 +255,7 @@ private fun TypeChips(selected: RenewalType?, onSelected: (RenewalType) -> Unit)
                     FilterChip(
                         selected = selected == type,
                         onClick = { onSelected(type) },
-                        label = { Text("${type.emoji} ${type.label}") },
+                        label = { Text("${type.emoji} ${type.displayName()}") },
                     )
                 }
             }
@@ -208,7 +284,7 @@ private fun RenewalCard(item: RenewalItem, onClick: () -> Unit) {
             Text(item.type.emoji, style = MaterialTheme.typography.headlineMedium)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(item.dueMessage())
+                Text(item.localizedDueMessage())
                 Text(
                     buildList {
                         add(item.dueEpochDay.asRenewDateLabel())
@@ -241,7 +317,7 @@ fun RenewEditorScreen(
     val valid = title.isNotBlank() && reminder != null && reminder >= 0
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(if (existing == null) "Add renewal" else "Edit renewal") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+        topBar = { TopAppBar(title = { Text(stringResource(if (existing == null) R.string.add_renewal else R.string.edit_renewal)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
                 Button(
@@ -260,7 +336,7 @@ fun RenewEditorScreen(
                     },
                     enabled = valid,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
-                ) { Text(if (existing == null) "Save renewal" else "Save changes") }
+                ) { Text(stringResource(if (existing == null) R.string.save_renewal else R.string.save_changes)) }
             }
         },
     ) { padding ->
@@ -268,19 +344,19 @@ fun RenewEditorScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(title, { title = it }, label = { Text("Title") }, placeholder = { Text("Passport, vehicle insurance…") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Type", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.title)) }, placeholder = { Text(stringResource(R.string.title_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.type), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             TypeChips(selected = RenewalType.valueOf(typeName), onSelected = { typeName = it.name })
             ElevatedCard(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Due date", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.due_date), style = MaterialTheme.typography.labelMedium)
                     Text(dueEpochDay.asRenewDateLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                 }
             }
-            OutlinedTextField(reminderDays, { reminderDays = it }, label = { Text("Remind before (days)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(provider, { provider = it }, label = { Text("Provider / issuer") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(reference, { reference = it }, label = { Text("Reference number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(reminderDays, { reminderDays = it }, label = { Text(stringResource(R.string.remind_before_days)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(provider, { provider = it }, label = { Text(stringResource(R.string.provider_issuer)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(reference, { reference = it }, label = { Text(stringResource(R.string.reference_number)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
         }
     }
 
@@ -304,9 +380,9 @@ private fun RenewDatePickerDialog(
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { renewPickerMillisToEpochDay(state.selectedDateMillis)?.let(onSelected) }) { Text("Select") }
+            TextButton(onClick = { renewPickerMillisToEpochDay(state.selectedDateMillis)?.let(onSelected) }) { Text(stringResource(R.string.select)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     ) { DatePicker(state = state) }
 }
 
@@ -320,8 +396,8 @@ fun RenewDetailScreen(
     onDelete: () -> Unit,
 ) {
     if (item == null) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Renewal unavailable") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
-            EmptyState("This renewal is unavailable", "It may have been deleted.", Modifier.padding(padding))
+        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.renewal_unavailable)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) }) { padding ->
+            EmptyState(stringResource(R.string.renewal_unavailable_title), stringResource(R.string.renewal_unavailable_body), Modifier.padding(padding))
         }
         return
     }
@@ -330,10 +406,10 @@ fun RenewDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
-                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit") }
-                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete") }
+                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, stringResource(R.string.edit)) }
+                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, stringResource(R.string.delete)) }
                 },
             )
         },
@@ -353,19 +429,19 @@ fun RenewDetailScreen(
                 ),
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${item.type.emoji} ${item.type.label}", style = MaterialTheme.typography.labelLarge)
-                    Text(item.dueMessage(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Due: ${item.dueEpochDay.asRenewDateLabel()}")
+                    Text("${item.type.emoji} ${item.type.displayName()}", style = MaterialTheme.typography.labelLarge)
+                    Text(item.localizedDueMessage(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.due_date_format, item.dueEpochDay.asRenewDateLabel()))
                 }
             }
-            RenewDetailRow("Reminder", "${item.reminderDays} days before")
-            if (item.provider.isNotBlank()) RenewDetailRow("Provider / issuer", item.provider)
-            if (item.referenceNumber.isNotBlank()) RenewDetailRow("Reference", item.referenceNumber)
-            item.lastRenewedEpochDay?.let { RenewDetailRow("Last renewed", it.asRenewDateLabel()) }
-            if (item.notes.isNotBlank()) RenewDetailRow("Notes", item.notes)
+            RenewDetailRow(stringResource(R.string.reminder), stringResource(R.string.days_before, item.reminderDays))
+            if (item.provider.isNotBlank()) RenewDetailRow(stringResource(R.string.provider_issuer), item.provider)
+            if (item.referenceNumber.isNotBlank()) RenewDetailRow(stringResource(R.string.reference), item.referenceNumber)
+            item.lastRenewedEpochDay?.let { RenewDetailRow(stringResource(R.string.last_renewed), it.asRenewDateLabel()) }
+            if (item.notes.isNotBlank()) RenewDetailRow(stringResource(R.string.notes), item.notes)
             Button(onClick = onRenew, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Icon(Icons.Default.Refresh, contentDescription = null)
-                Text("  Mark renewed")
+                Text(stringResource(R.string.mark_renewed))
             }
         }
     }
@@ -397,10 +473,10 @@ fun MarkRenewedScreen(
     var showPicker by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Mark renewed") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.mark_renewed)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
-                Button(onClick = { onConfirm(newDueEpochDay, notes) }, modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp)) { Text("Save new due date") }
+                Button(onClick = { onConfirm(newDueEpochDay, notes) }, modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp)) { Text(stringResource(R.string.save_new_due_date)) }
             }
         },
     ) { padding ->
@@ -408,14 +484,14 @@ fun MarkRenewedScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("${item.title} is currently due ${item.dueEpochDay.asRenewDateLabel()}.")
+            Text(stringResource(R.string.currently_due, item.title, item.dueEpochDay.asRenewDateLabel()))
             ElevatedCard(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("New due date", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.new_due_date), style = MaterialTheme.typography.labelMedium)
                     Text(newDueEpochDay.asRenewDateLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
-            OutlinedTextField(notes, { notes = it }, label = { Text("Renewal notes") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.renewal_notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
         }
     }
     if (showPicker) {
@@ -427,10 +503,10 @@ fun MarkRenewedScreen(
 @Composable
 fun RenewHistoryScreen(events: List<RenewalEvent>, onBack: () -> Unit) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Renewal history") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.renewal_history)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
     ) { padding ->
         if (events.isEmpty()) {
-            EmptyState("No renewals recorded", "When you mark an item renewed, its old and new due dates appear here.", Modifier.fillMaxSize().padding(padding))
+            EmptyState(stringResource(R.string.no_renewals_recorded), stringResource(R.string.no_renewals_recorded_body), Modifier.fillMaxSize().padding(padding))
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -441,7 +517,7 @@ fun RenewHistoryScreen(events: List<RenewalEvent>, onBack: () -> Unit) {
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(event.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("${event.previousDueEpochDay.asRenewDateLabel()} → ${event.newDueEpochDay.asRenewDateLabel()}")
+                            Text(stringResource(R.string.history_date_range, event.previousDueEpochDay.asRenewDateLabel(), event.newDueEpochDay.asRenewDateLabel()))
                             Text(event.renewedAtMillis.asRenewHistoryLabel(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (event.notes.isNotBlank()) Text(event.notes)
                         }
@@ -461,9 +537,10 @@ fun DeleteRenewalDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Delete, contentDescription = null) },
-        title = { Text("Delete ${title.ifBlank { "renewal" }}?") },
-        text = { Text("This removes the due date. Existing renewal-history entries remain local.") },
-        confirmButton = { Button(onClick = onConfirm) { Text("Delete") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text(stringResource(R.string.delete_renewal_title, title.ifBlank { stringResource(R.string.renewal_fallback) })) },
+        text = { Text(stringResource(R.string.delete_renewal_body)) },
+        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.delete)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
+

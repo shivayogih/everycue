@@ -24,10 +24,17 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
             templateId = route.templateId,
             onBack = { navigator.goBack() },
             onCreate = { draft ->
-                viewModel.createTrip(draft) { tripId ->
-                    navigator.openInTopLevel(PackTripsRoute, PackTripDetailRoute(tripId))
-                }
+                viewModel.onIntent(PackIntent.CreateTrip(draft))
             },
+        )
+    }
+    entry<EditPackTripRoute> { route ->
+        val trip = data.trips.firstOrNull { it.id == route.tripId }
+        CreateTripScreen(
+            templateId = null,
+            existing = trip,
+            onBack = { navigator.goBack() },
+            onCreate = { draft -> viewModel.onIntent(PackIntent.UpdateTrip(route.tripId, draft)) },
         )
     }
     entry<PackTripDetailRoute> { route ->
@@ -36,9 +43,11 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
             trip = trip,
             onBack = { navigator.goBack() },
             onAddItem = { navigator.navigate(AddPackItemDialogRoute(route.tripId)) },
-            onTogglePacked = { item, packed -> viewModel.setPacked(route.tripId, item.id, packed) },
-            onDeleteItem = { item -> viewModel.deleteItem(route.tripId, item.id) },
-            onUnpackAll = { viewModel.unpackAll(route.tripId) },
+            onEditTrip = { navigator.navigate(EditPackTripRoute(route.tripId)) },
+            onTogglePacked = { item, packed -> viewModel.onIntent(PackIntent.SetPacked(route.tripId, item.id, packed)) },
+            onDeleteItem = { item -> viewModel.onIntent(PackIntent.DeleteItem(route.tripId, item.id)) },
+            onMoveItem = { item, offset -> viewModel.onIntent(PackIntent.MoveItem(route.tripId, item.id, offset)) },
+            onUnpackAll = { viewModel.onIntent(PackIntent.UnpackAll(route.tripId)) },
             onDeleteTrip = {
                 navigator.navigate(
                     DeletePackTripDialogRoute(
@@ -60,32 +69,25 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
         )
     }
     entry<AddPackItemDialogRoute>(
-        metadata = DialogSceneStrategy.dialog(
-            DialogProperties(windowTitle = "Add packing item"),
-        ),
+        metadata = DialogSceneStrategy.dialog(DialogProperties()),
     ) { route ->
         AddItemDialogScreen(
             onDismiss = { navigator.goBack() },
             onAdd = { name, category, quantity ->
-                viewModel.addItem(route.tripId, name, category, quantity) {
-                    navigator.goBack()
-                }
+                viewModel.onIntent(PackIntent.AddItem(route.tripId, name, category, quantity))
             },
         )
     }
     entry<DeletePackTripDialogRoute>(
-        metadata = DialogSceneStrategy.dialog(
-            DialogProperties(windowTitle = "Delete trip"),
-        ),
+        metadata = DialogSceneStrategy.dialog(DialogProperties()),
     ) { route ->
         DeleteTripDialogScreen(
             tripName = route.tripName,
             onDismiss = { navigator.goBack() },
             onConfirm = {
-                viewModel.deleteTrip(route.tripId) {
-                    navigator.selectTopLevel(PackTripsRoute)
-                }
+                viewModel.onIntent(PackIntent.DeleteTrip(route.tripId))
             },
         )
     }
 }
+

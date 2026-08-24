@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.everycue.feature.pack.PackingCategory
@@ -42,9 +43,9 @@ fun TemplatesScreen(onTemplateClick: (String) -> Unit) {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Templates", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.templates), fontWeight = FontWeight.Bold)
                         Text(
-                            "Start with the essentials",
+                            stringResource(R.string.templates_tagline),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -70,11 +71,11 @@ fun TemplatesScreen(onTemplateClick: (String) -> Unit) {
                         Text(template.emoji, style = MaterialTheme.typography.displaySmall)
                         Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(template.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(template.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(template.titleResource), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(template.subtitleResource), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "${template.items.size} items • about ${template.suggestedDays} ${if (template.suggestedDays == 1) "day" else "days"}",
+                                stringResource(if (template.suggestedDays == 1) R.string.template_summary_one_day else R.string.template_summary_days, template.items.size, template.suggestedDays),
                                 style = MaterialTheme.typography.labelMedium,
                             )
                         }
@@ -97,10 +98,10 @@ fun TemplateDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(template?.title ?: "Template") },
+                title = { Text(template?.let { stringResource(it.titleResource) } ?: stringResource(R.string.template)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -112,7 +113,7 @@ fun TemplateDetailScreen(
                         onClick = onUseTemplate,
                         modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                     ) {
-                        Text("Use this template")
+                        Text(stringResource(R.string.use_this_template))
                     }
                 }
             }
@@ -120,7 +121,7 @@ fun TemplateDetailScreen(
     ) { padding ->
         if (template == null) {
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
-                Text("Template not found")
+                Text(stringResource(R.string.template_not_found))
             }
             return@Scaffold
         }
@@ -132,7 +133,7 @@ fun TemplateDetailScreen(
         ) {
             item {
                 Text(template.emoji, style = MaterialTheme.typography.displayLarge)
-                Text(template.subtitle, style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(template.subtitleResource), style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(8.dp))
             }
             PackingCategory.entries.forEach { category ->
@@ -140,20 +141,20 @@ fun TemplateDetailScreen(
                 if (categoryItems.isNotEmpty()) {
                     item {
                         Text(
-                            "${category.emoji} ${category.label}",
+                            "${category.emoji} ${category.displayName()}",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     }
-                    items(categoryItems, key = { "${category.name}-${it.name}" }) { item ->
+                    items(categoryItems, key = { "${category.name}-${it.nameResource}" }) { item ->
                         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(item.name, modifier = Modifier.weight(1f))
-                                if (item.quantity > 1) Text("×${item.quantity}")
+                                Text(stringResource(item.nameResource), modifier = Modifier.weight(1f))
+                                if (item.quantity > 1) Text(stringResource(R.string.quantity_multiplier, item.quantity))
                             }
                         }
                     }
@@ -162,3 +163,4 @@ fun TemplateDetailScreen(
         }
     }
 }
+

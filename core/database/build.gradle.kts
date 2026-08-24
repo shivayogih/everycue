@@ -32,3 +32,4 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
 }
+

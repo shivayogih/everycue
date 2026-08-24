@@ -39,3 +39,4 @@ dependencies {
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
     testImplementation(libs.junit)
 }
+

@@ -11,3 +11,4 @@ import kotlinx.serialization.Serializable
 @Serializable data class TrackDetailRoute(val itemId: String) : NavKey
 @Serializable data class TrackOutcomeDialogRoute(val itemId: String, val outcome: TrackOutcome) : NavKey
 @Serializable data class DeleteTrackItemDialogRoute(val itemId: String, val itemName: String) : NavKey
+

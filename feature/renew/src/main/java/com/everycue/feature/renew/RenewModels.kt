@@ -4,21 +4,12 @@ import java.time.LocalDate
 
 const val DEFAULT_RENEW_WARNING_DAYS = 30
 
-enum class RenewalType(val label: String, val emoji: String) {
-    DOCUMENT("Document", "🪪"),
-    INSURANCE("Insurance", "🛡️"),
-    WARRANTY("Warranty", "🧾"),
-    MEMBERSHIP("Membership", "🎟️"),
-    SUBSCRIPTION("Subscription", "🔁"),
-    CERTIFICATE("Certificate", "📜"),
-    OTHER("Other", "📅"),
+enum class RenewalType(val emoji: String) {
+    DOCUMENT("🪪"), INSURANCE("🛡️"), WARRANTY("🧾"), MEMBERSHIP("🎟️"), SUBSCRIPTION("🔁"), CERTIFICATE("📜"), OTHER("📅"),
 }
 
-enum class DueState(val label: String) {
-    UPCOMING("Upcoming"),
-    DUE_SOON("Due soon"),
-    DUE_TODAY("Due today"),
-    OVERDUE("Overdue"),
+enum class DueState {
+    UPCOMING, DUE_SOON, DUE_TODAY, OVERDUE,
 }
 
 data class RenewalItem(
@@ -70,9 +61,11 @@ data class RenewalEvent(
 data class RenewUiState(
     val renewals: List<RenewalItem> = emptyList(),
     val events: List<RenewalEvent> = emptyList(),
+    val isBusy: Boolean = false,
 ) {
     val overdueCount: Int get() = renewals.count { it.dueState() == DueState.OVERDUE }
     val dueSoonCount: Int get() = renewals.count { it.dueState() in setOf(DueState.DUE_SOON, DueState.DUE_TODAY) }
     val upcomingCount: Int get() = renewals.count { it.dueState() == DueState.UPCOMING }
     val urgent: List<RenewalItem> get() = renewals.filter { it.dueState() != DueState.UPCOMING }.take(6)
 }
+

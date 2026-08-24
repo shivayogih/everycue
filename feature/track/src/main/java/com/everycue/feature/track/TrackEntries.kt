@@ -1,6 +1,7 @@
 package com.everycue.feature.track
 
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.res.stringResource
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.scene.DialogSceneStrategy
@@ -34,13 +35,7 @@ fun EntryProviderScope<NavKey>.trackEntryBuilder(
             existing = route.itemId?.let { id -> state.items.firstOrNull { it.id == id } },
             onBack = { navigator.goBack() },
             onSave = { draft ->
-                viewModel.save(draft, route.itemId) { savedId ->
-                    if (route.itemId == null) {
-                        navigator.openInTopLevel(TrackHomeRoute, TrackDetailRoute(savedId))
-                    } else {
-                        navigator.goBack()
-                    }
-                }
+                viewModel.onIntent(TrackIntent.Save(draft, route.itemId))
             },
         )
     }
@@ -68,40 +63,42 @@ fun EntryProviderScope<NavKey>.trackEntryBuilder(
         TrackInsightsScreen(state = state, onBack = { navigator.goBack() })
     }
     entry<TrackOutcomeDialogRoute>(
-        metadata = DialogSceneStrategy.dialog(
-            DialogProperties(windowTitle = "Record item outcome"),
-        ),
+        metadata = DialogSceneStrategy.dialog(DialogProperties()),
     ) { route ->
         val item = state.items.firstOrNull { it.id == route.itemId }
         TrackConfirmDialog(
-            title = "Mark as ${route.outcome.label.lowercase()}?",
-            message = "${item?.name ?: "This item"} will leave active inventory and be added to usage history.",
-            confirmLabel = route.outcome.label,
+            title = stringResource(R.string.mark_outcome_title, route.outcome.displayNameForEntry().lowercase()),
+            message = stringResource(R.string.outcome_message, item?.name ?: stringResource(R.string.this_item)),
+            confirmLabel = route.outcome.displayNameForEntry(),
             destructive = route.outcome == TrackOutcome.DISCARDED,
             onDismiss = { navigator.goBack() },
             onConfirm = {
-                viewModel.markOutcome(route.itemId, route.outcome) {
-                    navigator.selectTopLevel(TrackHomeRoute)
-                }
+                viewModel.onIntent(TrackIntent.MarkOutcome(route.itemId, route.outcome))
             },
         )
     }
     entry<DeleteTrackItemDialogRoute>(
-        metadata = DialogSceneStrategy.dialog(
-            DialogProperties(windowTitle = "Delete tracked item"),
-        ),
+        metadata = DialogSceneStrategy.dialog(DialogProperties()),
     ) { route ->
         TrackConfirmDialog(
-            title = "Delete ${route.itemName.ifBlank { "item" }}?",
-            message = "This removes the item without recording a consumed or waste outcome.",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.delete_item_title, route.itemName.ifBlank { stringResource(R.string.delete_item_fallback) }),
+            message = stringResource(R.string.delete_item_message),
+            confirmLabel = stringResource(R.string.delete),
             destructive = true,
             onDismiss = { navigator.goBack() },
             onConfirm = {
-                viewModel.delete(route.itemId) {
-                    navigator.selectTopLevel(TrackHomeRoute)
-                }
+                viewModel.onIntent(TrackIntent.Delete(route.itemId))
             },
         )
     }
 }
+
+@androidx.compose.runtime.Composable
+private fun TrackOutcome.displayNameForEntry(): String = stringResource(
+    when (this) {
+        TrackOutcome.CONSUMED -> R.string.consumed
+        TrackOutcome.DISCARDED -> R.string.discarded
+        TrackOutcome.DONATED -> R.string.donated
+    },
+)
+

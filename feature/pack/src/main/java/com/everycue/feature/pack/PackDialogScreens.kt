@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.everycue.feature.pack.PackingCategory
@@ -46,12 +47,12 @@ fun AddItemDialogScreen(
     val category = PackingCategory.valueOf(categoryName)
 
     DialogSurface {
-        Text("Add packing item", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.add_packing_item), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
-            label = { Text("Item name") },
-            placeholder = { Text("Example: Passport") },
+            label = { Text(stringResource(R.string.item_name)) },
+            placeholder = { Text(stringResource(R.string.item_name_hint)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -60,7 +61,7 @@ fun AddItemDialogScreen(
                 onClick = { categoryMenuOpen = true },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("${category.emoji} ${category.label}")
+                Text("${category.emoji} ${category.displayName()}")
             }
             DropdownMenu(
                 expanded = categoryMenuOpen,
@@ -68,7 +69,7 @@ fun AddItemDialogScreen(
             ) {
                 PackingCategory.entries.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text("${option.emoji} ${option.label}") },
+                        text = { Text("${option.emoji} ${option.displayName()}") },
                         onClick = {
                             categoryName = option.name
                             categoryMenuOpen = false
@@ -82,14 +83,14 @@ fun AddItemDialogScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Quantity", fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.quantity), fontWeight = FontWeight.Medium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { quantity = (quantity - 1).coerceAtLeast(1) }) {
-                    Icon(Icons.Default.Remove, contentDescription = "Decrease quantity")
+                    Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.decrease_quantity))
                 }
                 Text(quantity.toString(), style = MaterialTheme.typography.titleMedium)
                 IconButton(onClick = { quantity = (quantity + 1).coerceAtMost(99) }) {
-                    Icon(Icons.Default.Add, contentDescription = "Increase quantity")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.increase_quantity))
                 }
             }
         }
@@ -97,9 +98,9 @@ fun AddItemDialogScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             Button(onClick = { onAdd(name, category, quantity) }, enabled = name.isNotBlank()) {
-                Text("Add")
+                Text(stringResource(R.string.add))
             }
         }
     }
@@ -112,9 +113,9 @@ fun DeleteTripDialogScreen(
     onConfirm: () -> Unit,
 ) {
     ConfirmationDialog(
-        title = "Delete trip?",
-        message = "“$tripName” and all its packing items will be permanently removed from this device.",
-        confirmLabel = "Delete",
+        title = stringResource(R.string.delete_trip_title),
+        message = stringResource(R.string.delete_trip_message, tripName),
+        confirmLabel = stringResource(R.string.delete),
         onDismiss = onDismiss,
         onConfirm = onConfirm,
     )
@@ -126,9 +127,9 @@ fun ResetDataDialogScreen(
     onConfirm: () -> Unit,
 ) {
     ConfirmationDialog(
-        title = "Delete all data?",
-        message = "Every trip and packing item stored by EveryCue Pack will be removed. This cannot be undone.",
-        confirmLabel = "Delete all",
+        title = stringResource(R.string.delete_all_title),
+        message = stringResource(R.string.delete_all_message),
+        confirmLabel = stringResource(R.string.delete_all),
         onDismiss = onDismiss,
         onConfirm = onConfirm,
     )
@@ -149,7 +150,7 @@ private fun ConfirmationDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             Button(onClick = onConfirm) { Text(confirmLabel) }
         }
     }
@@ -172,3 +173,4 @@ private fun DialogSurface(content: @Composable ColumnScope.() -> Unit) {
         )
     }
 }
+

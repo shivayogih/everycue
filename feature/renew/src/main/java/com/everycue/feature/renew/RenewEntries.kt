@@ -18,6 +18,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
             onOpenAll = { navigator.navigate(RenewListRoute) },
             onOpenRenewal = { navigator.navigate(RenewDetailRoute(it)) },
             onOpenHistory = { navigator.navigate(RenewHistoryRoute) },
+            onOpenInsights = { navigator.navigate(RenewInsightsRoute) },
         )
     }
     entry<RenewListRoute> {
@@ -33,13 +34,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
             existing = route.renewalId?.let { id -> state.renewals.firstOrNull { it.id == id } },
             onBack = { navigator.goBack() },
             onSave = { draft ->
-                viewModel.save(draft, route.renewalId) { savedId ->
-                    if (route.renewalId == null) {
-                        navigator.openInTopLevel(RenewHomeRoute, RenewDetailRoute(savedId))
-                    } else {
-                        navigator.goBack()
-                    }
-                }
+                viewModel.onIntent(RenewIntent.Save(draft, route.renewalId))
             },
         )
     }
@@ -65,28 +60,26 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
             item = state.renewals.firstOrNull { it.id == route.renewalId },
             onBack = { navigator.goBack() },
             onConfirm = { newDate, notes ->
-                viewModel.markRenewed(route.renewalId, newDate, notes) {
-                    navigator.goBack()
-                }
+                viewModel.onIntent(RenewIntent.MarkRenewed(route.renewalId, newDate, notes))
             },
         )
     }
     entry<RenewHistoryRoute> {
         RenewHistoryScreen(state.events, onBack = { navigator.goBack() })
     }
+    entry<RenewInsightsRoute> {
+        RenewInsightsScreen(state, onBack = { navigator.goBack() })
+    }
     entry<DeleteRenewalDialogRoute>(
-        metadata = DialogSceneStrategy.dialog(
-            DialogProperties(windowTitle = "Delete renewal"),
-        ),
+        metadata = DialogSceneStrategy.dialog(DialogProperties()),
     ) { route ->
         DeleteRenewalDialog(
             title = route.title,
             onDismiss = { navigator.goBack() },
             onConfirm = {
-                viewModel.delete(route.renewalId) {
-                    navigator.selectTopLevel(RenewHomeRoute)
-                }
+                viewModel.onIntent(RenewIntent.Delete(route.renewalId))
             },
         )
     }
 }
+

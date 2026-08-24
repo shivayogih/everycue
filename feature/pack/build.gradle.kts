@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.everycue.feature.pack"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig { minSdk = 23 }
     buildFeatures { compose = true }
     compileOptions {
@@ -21,6 +21,7 @@ java { toolchain.languageVersion.set(JavaLanguageVersion.of(21)) }
 dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:security"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

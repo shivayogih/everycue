@@ -27,3 +27,4 @@ class ExpiryStateTest {
         assertEquals(ExpiryState.FRESH, item(today + 8).expiryState(today))
     }
 }
+

@@ -1,31 +1,56 @@
 package com.everycue.app
 
+import android.Manifest
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,9 +58,31 @@ fun SettingsScreen(
     trackCount: Int,
     tripCount: Int,
     renewalCount: Int,
+    state: SettingsUiState,
+    onIntent: (SettingsIntent) -> Unit,
+    onProfile: () -> Unit,
     onAbout: () -> Unit,
 ) {
-    Scaffold(topBar = { TopAppBar(title = { Text("Settings", fontWeight = FontWeight.Bold) }) }) { padding ->
+    val settings = state.settings
+    val busy = state.isBusy
+    val context = LocalContext.current
+    var pendingImport by remember { mutableStateOf<Uri?>(null) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) onIntent(SettingsIntent.SetReminders(true)) }
+    val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { it?.let { uri -> onIntent(SettingsIntent.Export(uri)) } }
+    val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { if (it != null) pendingImport = it }
+    pendingImport?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text(stringResource(R.string.restore_backup_title)) },
+            text = { Text(stringResource(R.string.restore_backup_message)) },
+            confirmButton = { TextButton(onClick = { onIntent(SettingsIntent.Import(uri)); pendingImport = null }) { Text(stringResource(R.string.restore)) } },
+            dismissButton = { TextButton(onClick = { pendingImport = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) }) },
+    ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
@@ -45,38 +92,93 @@ fun SettingsScreen(
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.Lock, contentDescription = null)
-                        Text("Private and offline first", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "The foundation stores Track and Renew records in a local Room database and Pack lists in local DataStore. No account, ads or analytics SDK is included.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Text(stringResource(R.string.privacy_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.privacy_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            item { SummaryCard(trackCount, tripCount, renewalCount) }
+            item {
+                ElevatedCard(onClick = onProfile, modifier = Modifier.fillMaxWidth()) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.local_profile)) },
+                        supportingContent = { Text(stringResource(R.string.local_profile_summary)) },
+                        leadingContent = { Icon(Icons.Default.Person, null) },
+                    )
+                }
+            }
+            item {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(vertical = 8.dp)) {
+                        ListItem(headlineContent = { Text(stringResource(R.string.appearance)) }, leadingContent = { Icon(Icons.Default.Palette, null) })
+                        ThemePreference.entries.forEach { value ->
+                            ListItem(
+                                headlineContent = { Text(stringResource(when (value) { ThemePreference.SYSTEM -> R.string.theme_system; ThemePreference.LIGHT -> R.string.theme_light; ThemePreference.DARK -> R.string.theme_dark })) },
+                                leadingContent = { RadioButton(settings.theme == value, { onIntent(SettingsIntent.SetTheme(value)) }) },
+                            )
+                        }
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.device_colors)) },
+                            supportingContent = { Text(stringResource(R.string.device_colors_summary)) },
+                            trailingContent = { Switch(settings.dynamicColor, { onIntent(SettingsIntent.SetDynamicColor(it)) }) },
                         )
                     }
                 }
             }
             item {
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    ListItem(
-                        headlineContent = { Text("Local data summary") },
-                        supportingContent = { Text("$trackCount active tracked items • $tripCount trips • $renewalCount renewals") },
-                        leadingContent = { Icon(Icons.Default.Storage, contentDescription = null) },
-                    )
+                    Column(Modifier.padding(vertical = 8.dp)) {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.daily_reminders)) },
+                            supportingContent = { Text(stringResource(R.string.daily_reminders_summary, stringResource(R.string.hour_format, settings.reminderHour.toString().padStart(2, '0')))) },
+                            leadingContent = { Icon(Icons.Default.Notifications, null) },
+                            trailingContent = {
+                                Switch(checked = settings.remindersEnabled, onCheckedChange = { enabled ->
+                                    if (!enabled) onIntent(SettingsIntent.SetReminders(false))
+                                    else if (Build.VERSION.SDK_INT >= 33 && !notificationsAllowed(context)) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    else onIntent(SettingsIntent.SetReminders(true))
+                                })
+                            },
+                        )
+                        if (settings.remindersEnabled) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                OutlinedButton(onClick = { onIntent(SettingsIntent.SetReminderHour((settings.reminderHour + 23) % 24)) }) { Text(stringResource(R.string.earlier)) }
+                                Text(stringResource(R.string.hour_format, settings.reminderHour.toString().padStart(2, '0')), fontWeight = FontWeight.Bold)
+                                OutlinedButton(onClick = { onIntent(SettingsIntent.SetReminderHour((settings.reminderHour + 1) % 24)) }) { Text(stringResource(R.string.later)) }
+                            }
+                        }
+                    }
                 }
             }
             item {
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    ListItem(
-                        headlineContent = { Text("Reminders") },
-                        supportingContent = { Text("WorkManager notifications and deep links are the next milestone.") },
-                        leadingContent = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                    )
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(stringResource(R.string.backup_restore), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.backup_summary), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(
+                            onClick = { exportFile.launch("everycue-backup-${LocalDate.now()}.json") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy,
+                        ) {
+                            Icon(Icons.Default.Backup, null); Text(stringResource(R.string.export_backup))
+                        }
+                        OutlinedButton({ importFile.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth(), enabled = !busy) {
+                            Icon(Icons.Default.Restore, null); Text(stringResource(R.string.restore_backup))
+                        }
+                        if (busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+                    }
                 }
             }
             item {
                 ElevatedCard(onClick = onAbout, modifier = Modifier.fillMaxWidth()) {
                     ListItem(
-                        headlineContent = { Text("About EveryCue") },
-                        supportingContent = { Text("Version ${BuildConfig.VERSION_NAME}") },
-                        leadingContent = { Icon(Icons.Default.Info, contentDescription = null) },
+                        headlineContent = { Text(stringResource(R.string.about_everycue)) },
+                        supportingContent = { Text(stringResource(R.string.version_format, BuildConfig.VERSION_NAME)) },
+                        leadingContent = { Icon(Icons.Default.Info, null) },
                     )
                 }
             }
@@ -84,28 +186,29 @@ fun SettingsScreen(
     }
 }
 
+@Composable
+private fun SummaryCard(trackCount: Int, tripCount: Int, renewalCount: Int) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.local_data_summary)) },
+            supportingContent = { Text(stringResource(R.string.local_counts_format, trackCount, tripCount, renewalCount)) },
+            leadingContent = { Icon(Icons.Default.Storage, null) },
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("About") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
-            )
-        },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.about_title)) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text("EveryCue", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Text("Track it. Pack it. Renew it.", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "An offline-first everyday organizer built with Kotlin, Jetpack Compose, Room, DataStore and Navigation 3.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text("Version ${BuildConfig.VERSION_NAME}")
+        Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.tagline), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.about_body), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.version_format, BuildConfig.VERSION_NAME))
         }
     }
 }
+

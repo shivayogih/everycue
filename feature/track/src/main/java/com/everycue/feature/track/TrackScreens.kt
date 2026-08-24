@@ -53,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,6 +61,39 @@ import com.everycue.core.designsystem.EmptyState
 import com.everycue.core.designsystem.MetricCard
 import com.everycue.core.designsystem.SectionHeader
 import java.time.LocalDate
+
+@Composable
+private fun TrackCategory.displayName(): String = stringResource(
+    when (this) {
+        TrackCategory.GROCERY -> R.string.category_grocery
+        TrackCategory.MEDICINE -> R.string.category_medicine
+        TrackCategory.COSMETIC -> R.string.category_cosmetic
+        TrackCategory.HOUSEHOLD -> R.string.category_household
+        TrackCategory.SUPPLEMENT -> R.string.category_supplement
+        TrackCategory.OTHER -> R.string.category_other
+    },
+)
+
+@Composable
+private fun TrackOutcome.displayName(): String = stringResource(
+    when (this) {
+        TrackOutcome.CONSUMED -> R.string.consumed
+        TrackOutcome.DISCARDED -> R.string.discarded
+        TrackOutcome.DONATED -> R.string.donated
+    },
+)
+
+@Composable
+private fun TrackItem.expiryMessageResource(): String {
+    val remaining = daysRemaining()
+    return when {
+        remaining < -1 -> stringResource(R.string.expires_days_ago, -remaining)
+        remaining == -1L -> stringResource(R.string.expired_yesterday)
+        remaining == 0L -> stringResource(R.string.expires_today)
+        remaining == 1L -> stringResource(R.string.expires_tomorrow)
+        else -> stringResource(R.string.expires_in_days, remaining)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,9 +110,9 @@ fun TrackHomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Track", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.track_title), fontWeight = FontWeight.Bold)
                         Text(
-                            "Use what expires first",
+                            stringResource(R.string.track_tagline),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -90,7 +124,7 @@ fun TrackHomeScreen(
             ExtendedFloatingActionButton(
                 onClick = onAdd,
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Add item") },
+                text = { Text(stringResource(R.string.add_item)) },
             )
         },
     ) { padding ->
@@ -101,38 +135,38 @@ fun TrackHomeScreen(
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MetricCard("Fresh", state.freshCount.toString(), Modifier.weight(1f))
-                    MetricCard("Soon", state.expiringSoonCount.toString(), Modifier.weight(1f))
-                    MetricCard("Expired", state.expiredCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.fresh), state.freshCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.soon), state.expiringSoonCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.expired), state.expiredCount.toString(), Modifier.weight(1f))
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    QuickAction("Inventory", Icons.Default.Inventory2, onOpenInventory, Modifier.weight(1f))
-                    QuickAction("History", Icons.Default.History, onOpenHistory, Modifier.weight(1f))
-                    QuickAction("Insights", Icons.Default.BarChart, onOpenInsights, Modifier.weight(1f))
+                    QuickAction(stringResource(R.string.inventory), Icons.Default.Inventory2, onOpenInventory, Modifier.weight(1f))
+                    QuickAction(stringResource(R.string.history), Icons.Default.History, onOpenHistory, Modifier.weight(1f))
+                    QuickAction(stringResource(R.string.insights), Icons.Default.BarChart, onOpenInsights, Modifier.weight(1f))
                 }
             }
             item {
                 SectionHeader(
-                    title = "Use ahead",
-                    action = { TextButton(onClick = onOpenInventory) { Text("View all") } },
+                    title = stringResource(R.string.use_ahead),
+                    action = { TextButton(onClick = onOpenInventory) { Text(stringResource(R.string.view_all)) } },
                 )
             }
             if (state.items.isEmpty()) {
                 item {
                     EmptyState(
-                        title = "Nothing is being tracked",
-                        message = "Add groceries, medicines, cosmetics or household products and EveryCue will order them by urgency.",
-                        action = { Button(onClick = onAdd) { Text("Add first item") } },
+                        title = stringResource(R.string.nothing_tracked),
+                        message = stringResource(R.string.nothing_tracked_message),
+                        action = { Button(onClick = onAdd) { Text(stringResource(R.string.add_first_item)) } },
                     )
                 }
             } else if (state.urgentItems.isEmpty()) {
                 item {
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Everything looks fresh", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("No product is inside its warning window.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.everything_fresh), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.nothing_in_warning_window), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -182,14 +216,14 @@ fun TrackInventoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Inventory") },
+                title = { Text(stringResource(R.string.inventory)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back)) }
                 },
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add") })
+            ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.add)) })
         },
     ) { padding ->
         LazyColumn(
@@ -201,7 +235,7 @@ fun TrackInventoryScreen(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Search name or location") },
+                    label = { Text(stringResource(R.string.search_name_location)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -215,8 +249,8 @@ fun TrackInventoryScreen(
             if (visible.isEmpty()) {
                 item {
                     EmptyState(
-                        title = if (items.isEmpty()) "Your inventory is empty" else "No matching items",
-                        message = if (items.isEmpty()) "Add the first product to begin tracking." else "Clear the search or category filter.",
+                        title = stringResource(if (items.isEmpty()) R.string.inventory_empty else R.string.no_matching_items),
+                        message = stringResource(if (items.isEmpty()) R.string.inventory_empty_message else R.string.clear_filter_message),
                     )
                 }
             } else {
@@ -235,7 +269,7 @@ private fun LazyCategoryChips(selected: TrackCategory?, onSelected: (TrackCatego
                     FilterChip(
                         selected = selected == category,
                         onClick = { onSelected(category) },
-                        label = { Text("${category.emoji} ${category.label}") },
+                        label = { Text("${category.emoji} ${category.displayName()}") },
                     )
                 }
             }
@@ -264,7 +298,7 @@ private fun TrackItemCard(item: TrackItem, onClick: () -> Unit) {
             Text(item.category.emoji, style = MaterialTheme.typography.headlineMedium)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(item.expiryMessage(), style = MaterialTheme.typography.bodyMedium)
+                Text(item.expiryMessageResource(), style = MaterialTheme.typography.bodyMedium)
                 val meta = buildList {
                     add(item.quantity.quantityLabel(item.unit))
                     if (item.storageLocation.isNotBlank()) add(item.storageLocation)
@@ -283,10 +317,11 @@ fun TrackEditorScreen(
     onBack: () -> Unit,
     onSave: (TrackDraft) -> Unit,
 ) {
+    val defaultUnit = stringResource(R.string.default_unit)
     var name by rememberSaveable(existing?.id) { mutableStateOf(existing?.name.orEmpty()) }
     var categoryName by rememberSaveable(existing?.id) { mutableStateOf(existing?.category?.name ?: TrackCategory.GROCERY.name) }
     var quantity by rememberSaveable(existing?.id) { mutableStateOf(existing?.quantity?.toString() ?: "1") }
-    var unit by rememberSaveable(existing?.id) { mutableStateOf(existing?.unit ?: "item") }
+    var unit by rememberSaveable(existing?.id) { mutableStateOf(existing?.unit ?: defaultUnit) }
     var purchaseEpochDay by rememberSaveable(existing?.id) { mutableStateOf(existing?.purchaseEpochDay) }
     var expiryEpochDay by rememberSaveable(existing?.id) { mutableStateOf(existing?.expiryEpochDay ?: LocalDate.now().plusDays(7).toEpochDay()) }
     var location by rememberSaveable(existing?.id) { mutableStateOf(existing?.storageLocation.orEmpty()) }
@@ -302,8 +337,8 @@ fun TrackEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (existing == null) "Add item" else "Edit item") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                title = { Text(stringResource(if (existing == null) R.string.add_item else R.string.edit_item)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
             )
         },
         bottomBar = {
@@ -326,7 +361,7 @@ fun TrackEditorScreen(
                     },
                     enabled = valid,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
-                ) { Text(if (existing == null) "Save item" else "Save changes") }
+                ) { Text(stringResource(if (existing == null) R.string.save_item else R.string.save_changes)) }
             }
         },
     ) { padding ->
@@ -334,23 +369,23 @@ fun TrackEditorScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(name, { name = it }, label = { Text("Product name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Category", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.product_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.category), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             LazyCategoryChips(
                 selected = TrackCategory.valueOf(categoryName),
                 onSelected = { categoryName = it.name },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(quantity, { quantity = it }, label = { Text("Quantity") }, singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(unit, { unit = it }, label = { Text("Unit") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(quantity, { quantity = it }, label = { Text(stringResource(R.string.quantity)) }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(unit, { unit = it }, label = { Text(stringResource(R.string.unit)) }, singleLine = true, modifier = Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DateCard("Purchased", purchaseEpochDay?.asEpochDayLabel() ?: "Optional", { showPurchasePicker = true }, Modifier.weight(1f))
-                DateCard("Expires", expiryEpochDay.asEpochDayLabel(), { showExpiryPicker = true }, Modifier.weight(1f))
+                DateCard(stringResource(R.string.purchased), purchaseEpochDay?.asEpochDayLabel() ?: stringResource(R.string.optional), { showPurchasePicker = true }, Modifier.weight(1f))
+                DateCard(stringResource(R.string.expires), expiryEpochDay.asEpochDayLabel(), { showExpiryPicker = true }, Modifier.weight(1f))
             }
-            OutlinedTextField(location, { location = it }, label = { Text("Storage location") }, placeholder = { Text("Fridge, pantry, bathroom…") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(reminderDays, { reminderDays = it }, label = { Text("Warning days") }, supportingText = { Text("Item becomes ‘expiring soon’ inside this window") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(location, { location = it }, label = { Text(stringResource(R.string.storage_location)) }, placeholder = { Text(stringResource(R.string.storage_location_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(reminderDays, { reminderDays = it }, label = { Text(stringResource(R.string.warning_days)) }, supportingText = { Text(stringResource(R.string.warning_days_help)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
         }
     }
 
@@ -392,11 +427,11 @@ private fun TrackDatePickerDialog(
     val pickerState = rememberDatePickerState(initialSelectedDateMillis = epochDayToDatePickerMillis(initialEpochDay))
     DatePickerDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = { onSelected(datePickerMillisToEpochDay(pickerState.selectedDateMillis)) }) { Text("Select") } },
+        confirmButton = { TextButton(onClick = { onSelected(datePickerMillisToEpochDay(pickerState.selectedDateMillis)) }) { Text(stringResource(R.string.select)) } },
         dismissButton = {
             Row {
-                if (allowClear) TextButton(onClick = { onSelected(null) }) { Text("Clear") }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                if (allowClear) TextButton(onClick = { onSelected(null) }) { Text(stringResource(R.string.clear)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         },
     ) { DatePicker(state = pickerState) }
@@ -420,10 +455,10 @@ fun TrackDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
-                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit") }
-                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete") }
+                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, stringResource(R.string.edit)) }
+                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, stringResource(R.string.delete)) }
                 },
             )
         },
@@ -443,22 +478,22 @@ fun TrackDetailScreen(
                 ),
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${item.category.emoji} ${item.category.label}", style = MaterialTheme.typography.labelLarge)
-                    Text(item.expiryMessage(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Expiry date: ${item.expiryEpochDay.asEpochDayLabel()}")
+                    Text("${item.category.emoji} ${item.category.displayName()}", style = MaterialTheme.typography.labelLarge)
+                    Text(item.expiryMessageResource(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.expiry_date_format, item.expiryEpochDay.asEpochDayLabel()))
                 }
             }
-            DetailRow("Quantity", item.quantity.quantityLabel(item.unit))
-            item.purchaseEpochDay?.let { DetailRow("Purchase date", it.asEpochDayLabel()) }
-            if (item.storageLocation.isNotBlank()) DetailRow("Stored at", item.storageLocation)
-            DetailRow("Warning window", "${item.reminderDays} days")
-            if (item.notes.isNotBlank()) DetailRow("Notes", item.notes)
-            Text("Record outcome", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            DetailRow(stringResource(R.string.quantity), item.quantity.quantityLabel(item.unit))
+            item.purchaseEpochDay?.let { DetailRow(stringResource(R.string.purchase_date), it.asEpochDayLabel()) }
+            if (item.storageLocation.isNotBlank()) DetailRow(stringResource(R.string.stored_at), item.storageLocation)
+            DetailRow(stringResource(R.string.warning_window), stringResource(R.string.days_format, item.reminderDays))
+            if (item.notes.isNotBlank()) DetailRow(stringResource(R.string.notes), item.notes)
+            Text(stringResource(R.string.record_outcome), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onOutcome(TrackOutcome.CONSUMED) }, modifier = Modifier.weight(1f)) { Text("Consumed") }
-                OutlinedButton(onClick = { onOutcome(TrackOutcome.DISCARDED) }, modifier = Modifier.weight(1f)) { Text("Discarded") }
+                Button(onClick = { onOutcome(TrackOutcome.CONSUMED) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.consumed)) }
+                OutlinedButton(onClick = { onOutcome(TrackOutcome.DISCARDED) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.discarded)) }
             }
-            FilledTonalButton(onClick = { onOutcome(TrackOutcome.DONATED) }, modifier = Modifier.fillMaxWidth()) { Text("Donated / given away") }
+            FilledTonalButton(onClick = { onOutcome(TrackOutcome.DONATED) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.donated_given_away)) }
         }
     }
 }
@@ -477,18 +512,18 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun MissingTrackItemScreen(onBack: () -> Unit) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Item unavailable") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
-    ) { padding -> EmptyState("This item is no longer active", "It may have been completed or deleted.", Modifier.padding(padding)) }
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.item_unavailable)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
+    ) { padding -> EmptyState(stringResource(R.string.item_no_longer_active), stringResource(R.string.item_missing_message), Modifier.padding(padding)) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackHistoryScreen(events: List<TrackEvent>, onBack: () -> Unit) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Usage history") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.usage_history)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
     ) { padding ->
         if (events.isEmpty()) {
-            EmptyState("No outcomes yet", "Items marked consumed, discarded or donated will appear here.", Modifier.fillMaxSize().padding(padding))
+            EmptyState(stringResource(R.string.no_outcomes), stringResource(R.string.no_outcomes_message), Modifier.fillMaxSize().padding(padding))
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -508,7 +543,7 @@ fun TrackHistoryScreen(events: List<TrackEvent>, onBack: () -> Unit) {
                             )
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(event.itemName, fontWeight = FontWeight.SemiBold)
-                                Text("${event.outcome.label} • ${event.quantity.quantityLabel(event.unit)}")
+                                Text(stringResource(R.string.event_summary, event.outcome.displayName(), event.quantity.quantityLabel(event.unit)))
                                 Text(event.timestampMillis.asEventDateLabel(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -522,29 +557,44 @@ fun TrackHistoryScreen(events: List<TrackEvent>, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackInsightsScreen(state: TrackUiState, onBack: () -> Unit) {
+    val categories = state.items.groupingBy(TrackItem::category).eachCount().entries.sortedByDescending { it.value }
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Usage insights") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.usage_insights)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { MetricCard("Use score", "${state.usageEfficiency}%", supportingText = "Consumed ÷ consumed and discarded outcomes") }
+            item { MetricCard(stringResource(R.string.use_score), "${state.usageEfficiency}%", supportingText = stringResource(R.string.use_score_help)) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MetricCard("Consumed", state.consumedCount.toString(), Modifier.weight(1f))
-                    MetricCard("Wasted", state.discardedCount.toString(), Modifier.weight(1f))
-                    MetricCard("Donated", state.donatedCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.consumed), state.consumedCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.wasted), state.discardedCount.toString(), Modifier.weight(1f))
+                    MetricCard(stringResource(R.string.donated), state.donatedCount.toString(), Modifier.weight(1f))
                 }
             }
             item {
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Current risk", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${state.expiredCount} expired and ${state.expiringSoonCount} expiring soon")
+                        Text(stringResource(R.string.active_by_category), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        if (categories.isEmpty()) Text(stringResource(R.string.add_items_breakdown), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else categories.forEach { (category, count) ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${category.emoji} ${category.displayName()}")
+                                Text(count.toString(), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.current_risk), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.current_risk_summary, state.expiredCount, state.expiringSoonCount))
                         Text(
-                            "More useful trends will appear after enough outcomes are recorded. The first release intentionally keeps analytics local and explainable.",
+                            stringResource(R.string.insights_local_help),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -570,7 +620,8 @@ fun TrackConfirmDialog(
         confirmButton = {
             Button(onClick = onConfirm) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
         icon = if (destructive) ({ Icon(Icons.Default.Delete, contentDescription = null) }) else null,
     )
 }
+

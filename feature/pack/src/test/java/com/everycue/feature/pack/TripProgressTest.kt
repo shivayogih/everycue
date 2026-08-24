@@ -26,3 +26,4 @@ class TripProgressTest {
         assertEquals(4, trip.totalCount)
     }
 }
+

@@ -10,7 +10,7 @@ EveryCue is an offline-first Android utility that combines three focused tools i
 
 The project is structured as a real multi-feature Jetpack Compose application and as a focused Navigation 3 practice codebase. The consumer product—not Navigation 3—is the user-facing value proposition.
 
-## Current milestone: 0.1.0 foundation
+## Current milestone: 0.2.0 offline release candidate
 
 Implemented in this source package:
 
@@ -18,19 +18,26 @@ Implemented in this source package:
 |---|---|
 | App identity | `EveryCue`, application ID `com.everycue.app` |
 | Top-level navigation | Independent retained stacks for Track, Pack, Renew, and Settings |
-| Track | Add/edit/detail/delete, expiry classification, inventory search/category filter, outcomes, history, basic insights |
-| Pack | Create/delete trips, add/delete/toggle items, progress, templates, local persistence |
-| Renew | Add/edit/detail/delete, due classification, mark renewed, search/type filter, renewal history |
+| Track | Add/edit/detail/delete, expiry classification, search/filter, outcomes, history, and local insights |
+| Pack | Create/edit/delete/search trips, reorder/search/toggle items, progress, templates, local persistence |
+| Renew | Add/edit/detail/delete, due classification, history, search/filter, and local insights |
 | Persistence | Room for Track/Renew; Preferences DataStore for Pack |
-| Privacy posture | Offline-first, no login, backend, ads, analytics, or cloud sync |
-| Unit checks | Expiry boundaries, renewal boundaries, and packing progress |
+| Architecture | Clean repository boundaries with MVVM + MVI state, intents, and effects |
+| First run | Four-page illustrated tutorial followed by local profile setup |
+| Reminders | WorkManager daily scheduling, Android 13 permission flow, notification deep links |
+| Portability | Versioned JSON export/restore through Android's document picker |
+| Local identity | Editable name, phone, email, five-line address, pincode, and opt-in text sharing |
+| Widget | Home-screen summary for urgent, unpacked, and due counts |
+| Security | AES-256-GCM data encryption with an Android Keystore key; release root/emulator gate and secure-window controls |
+| Size | R8/resource shrinking plus optimized 1024 px WebP onboarding artwork; Play-delivered builds use AAB splits |
+| Privacy posture | Offline-first, no login, backend, ads, analytics, or cloud sync; OS backup disabled |
+| Unit checks | Expiry/due boundaries, insights, backup format, reminder schedule, and packing progress |
 
 Not yet implemented:
 
-- WorkManager reminders and notification deep links
-- Global settings persistence and category/location customization
-- Advanced analytics and charts
-- Import/export, widgets, cloud sync, family sharing, billing, and analytics SDKs
+- Custom categories/locations and user-authored packing templates
+- Time-series charts (current insights are local, aggregate, and explainable)
+- Cloud sync, family sharing, billing, and analytics SDKs
 - Scan, Vault, and Lists
 
 ## Module structure
@@ -40,28 +47,31 @@ Not yet implemented:
 :core:navigation
 :core:designsystem
 :core:database
+:core:security
 :feature:track
 :feature:pack
 :feature:renew
 ```
 
-The source keeps feature routes, screens, repositories, and entry builders together for the first vertical slice. When the route surface grows, each feature can be split into `api` and `impl` submodules without changing the product model.
+Each feature uses a domain-facing store interface, a persistence implementation, immutable UI state, explicit intents, one-time effects, a ViewModel, screens, and typed routes. See `docs/ARCHITECTURE.md`.
 
 ## Technology baseline
 
 - Kotlin 2.4.10
-- Jetpack Compose + Material 3
+- Jetpack Compose BOM 2026.08.00 + Material 3
 - Navigation 3 1.1.6
 - Room 2.8.4
 - Preferences DataStore 1.2.1
 - Coroutines, Flow, and StateFlow
 - AGP 9.3.2 / Gradle 9.5.0
-- minSdk 23 / compileSdk and targetSdk 36
+- minSdk 23 / compileSdk and targetSdk 37
 - JDK 21
+
+Release builds enable code and resource shrinking. The full-resolution generated onboarding sources are retained under `artwork/onboarding-source`; only optimized WebP derivatives are packaged in the Android app.
 
 ## Build
 
-This foundation includes the standard Gradle 9.5.0 wrapper and a GitHub Actions build that runs the project checks and uploads the debug APK.
+The project includes the standard Gradle 9.5.0 wrapper and a GitHub Actions gate that uploads the debug APK and unsigned release AAB.
 
 Local options:
 
@@ -69,18 +79,17 @@ Local options:
 2. Run the checked-in wrapper:
 
 ```bash
-./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew testDebugUnitTest lintDebug assembleDebug bundleRelease
 ```
 
 The wrapper-generation helper under `scripts/` is only needed when intentionally regenerating wrapper files.
 
 ## Release sequence
 
-1. **0.1 Foundation** — current modules, local data, Navigation 3, functional vertical slices.
-2. **0.2 Quality pass** — compile/CI fixes, string resources, error states, accessibility, UI tests, Room migration tests.
-3. **0.3 Reminders** — notification permission, WorkManager scheduling, reminder settings, notification deep links.
-4. **0.4 Insights** — time-based consumption/waste reports and renewal activity summaries.
-5. **0.9 Release candidate** — privacy policy, Play assets, signed AAB, closed testing, accessibility/device QA.
+1. **0.1 Foundation** — multi-feature local data and Navigation 3 vertical slices.
+2. **0.2 Offline RC** — clean MVVM/MVI flow, settings, reminders, deep links, backup/restore, insights, widgets, and release build.
+3. **0.3 Product polish** — localization, custom taxonomies/templates, richer charts, accessibility/device QA, and signed closed testing.
+4. **Future epics** — cloud/family/billing and Scan/Vault/Lists only after separate product, privacy, and backend specifications.
 
 ## Source lineage
 

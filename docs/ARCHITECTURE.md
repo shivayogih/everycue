@@ -1,0 +1,40 @@
+# EveryCue architecture
+
+EveryCue uses clean dependency boundaries with an MVVM + MVI presentation flow.
+
+## Dependency direction
+
+```text
+Compose UI -> Intent -> ViewModel -> domain store interface -> repository -> encryption -> Room/DataStore
+                 ^          |
+                 |          +-> immutable UiState
+                 +------------- one-time Effect (navigation/message)
+```
+
+- **UI:** renders immutable state and emits typed intents. It does not read databases, DataStore, files, or WorkManager.
+- **Presentation:** each feature ViewModel accepts a sealed intent contract, coordinates work, reduces observable state, and emits buffered one-time effects.
+- **Domain boundary:** `TrackStore`, `PackStore`, and `RenewStore` describe persistence-independent operations and models.
+- **Data:** repository implementations translate domain models to Room entities or versioned DataStore JSON.
+- **App boundary:** dependency construction, WorkManager, notifications, widgets, document URIs, and cross-feature backup orchestration live in `:app`.
+- **Navigation:** the app consumes effects and owns navigation, so ViewModels stay independent of Activity and Navigation 3 types.
+
+## State rules
+
+1. A screen's durable rendering input comes from its feature `UiState`.
+2. User actions enter through `onIntent`; public mutation methods are not exposed alongside it.
+3. Navigation and snackbars are effects, not durable state, so rotation does not replay them.
+4. Repositories expose `Flow` for observed data and suspend functions for commands.
+5. Android framework dependencies do not cross into feature ViewModels or domain contracts.
+
+## Offline and data ownership
+
+Track and Renew use Room; Pack, Settings, and the local profile use Preferences DataStore. Sensitive organizer text and the Pack/profile JSON payloads are encrypted before persistence with AES-256-GCM. The non-exportable key is generated and retained by Android Keystore. Existing plaintext development data is read for compatibility and becomes encrypted when it is next saved; non-sensitive display and reminder settings remain plaintext. Daily reminders use unique periodic WorkManager work. Manual backups are versioned JSON selected through Android's Storage Access Framework. The first-run profile is local identity data, not server authentication. No account, password, network client, ads, or analytics SDK is present.
+
+## Security boundary
+
+- Release builds fail closed before repository initialization when local signals indicate an emulator, test-key build, known root binary, or Magisk artifact. Debug builds explicitly bypass this gate for emulator-based development and CI.
+- Release windows prevent screenshots/non-secure displays, hide non-system overlays on Android 12+, and reject obscured touches. Widgets clear their counts and reminder workers stop before accessing data when the same device gate fails.
+- Android OS backup/device transfer is disabled. User-controlled, versioned export through the Storage Access Framework is the supported portability mechanism.
+- Sensitive local fields are authenticated and encrypted with AES-256-GCM using an Android Keystore key. Authentication failures fail closed instead of returning corrupted plaintext. User-requested JSON exports are intentionally readable and must be protected by the user at their chosen destination.
+- Cleartext networking is denied by manifest and Network Security Configuration. Debug builds may trust user-installed certificates for local inspection, but cleartext remains disabled.
+- Organizer records remain in Android app-private storage. This local gate is defense-in-depth and can be bypassed by a sufficiently capable attacker controlling the OS. Before a Play production rollout, use Play Integrity with server-side verdict verification for hardware-backed app/device integrity and app-access-risk decisions.

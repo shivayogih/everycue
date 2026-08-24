@@ -75,3 +75,4 @@ data class RenewalEventEntity(
     val renewedAtMillis: Long,
     val notes: String,
 )
+

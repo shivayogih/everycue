@@ -20,7 +20,7 @@ include(":app")
 include(":core:navigation")
 include(":core:designsystem")
 include(":core:database")
+include(":core:security")
 include(":feature:track")
 include(":feature:pack")
 include(":feature:renew")
-

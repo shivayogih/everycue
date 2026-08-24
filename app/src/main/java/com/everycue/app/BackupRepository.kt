@@ -8,6 +8,7 @@ import com.everycue.core.database.RenewalEntity
 import com.everycue.core.database.RenewalEventEntity
 import com.everycue.core.database.TrackEventEntity
 import com.everycue.core.database.TrackItemEntity
+import com.everycue.core.security.TextCipher
 import com.everycue.feature.pack.PackData
 import com.everycue.feature.pack.PackStore
 import kotlinx.serialization.Serializable
@@ -67,6 +68,7 @@ class BackupRepository(
     private val packRepository: PackStore,
     private val settingsRepository: SettingsStore,
     private val userProfileStore: UserProfileStore,
+    private val cipher: TextCipher,
 ) : BackupStore {
     private val resolver = context.applicationContext.contentResolver
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true; prettyPrint = true }
@@ -76,10 +78,10 @@ class BackupRepository(
         val renewalDao = database.renewalDao()
         val payload = EveryCueBackup(
             exportedAtMillis = System.currentTimeMillis(),
-            trackItems = trackDao.getAllItems().map(TrackItemEntity::toBackup),
-            trackEvents = trackDao.getAllEvents().map(TrackEventEntity::toBackup),
-            renewals = renewalDao.getAllRenewals().map(RenewalEntity::toBackup),
-            renewalEvents = renewalDao.getAllEvents().map(RenewalEventEntity::toBackup),
+            trackItems = trackDao.getAllItems().map { it.toBackup(cipher) },
+            trackEvents = trackDao.getAllEvents().map { it.toBackup(cipher) },
+            renewals = renewalDao.getAllRenewals().map { it.toBackup(cipher) },
+            renewalEvents = renewalDao.getAllEvents().map { it.toBackup(cipher) },
             pack = packRepository.snapshot(),
             settings = settingsRepository.snapshot(),
             profile = userProfileStore.snapshot(),
@@ -105,10 +107,10 @@ class BackupRepository(
             trackDao.deleteAllItems()
             renewalDao.deleteAllEvents()
             renewalDao.deleteAllRenewals()
-            trackDao.upsertItems(payload.trackItems.map(TrackItemBackup::toEntity))
-            trackDao.upsertEvents(payload.trackEvents.map(TrackEventBackup::toEntity))
-            renewalDao.upsertRenewals(payload.renewals.map(RenewalBackup::toEntity))
-            renewalDao.upsertEvents(payload.renewalEvents.map(RenewalEventBackup::toEntity))
+            trackDao.upsertItems(payload.trackItems.map { it.toEntity(cipher) })
+            trackDao.upsertEvents(payload.trackEvents.map { it.toEntity(cipher) })
+            renewalDao.upsertRenewals(payload.renewals.map { it.toEntity(cipher) })
+            renewalDao.upsertEvents(payload.renewalEvents.map { it.toEntity(cipher) })
         }
         packRepository.replaceAll(payload.pack)
         settingsRepository.replaceAll(payload.settings)
@@ -116,12 +118,11 @@ class BackupRepository(
     }
 }
 
-private fun TrackItemEntity.toBackup() = TrackItemBackup(id, name, category, quantity, unit, purchaseEpochDay, expiryEpochDay, storageLocation, notes, reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis)
-private fun TrackItemBackup.toEntity() = TrackItemEntity(id, name, category, quantity, unit, purchaseEpochDay, expiryEpochDay, storageLocation, notes, reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis)
-private fun TrackEventEntity.toBackup() = TrackEventBackup(id, itemId, itemNameSnapshot, outcome, quantity, unit, timestampMillis, notes)
-private fun TrackEventBackup.toEntity() = TrackEventEntity(id, itemId, itemNameSnapshot, outcome, quantity, unit, timestampMillis, notes)
-private fun RenewalEntity.toBackup() = RenewalBackup(id, title, type, dueEpochDay, reminderDays, provider, referenceNumber, notes, lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
-private fun RenewalBackup.toEntity() = RenewalEntity(id, title, type, dueEpochDay, reminderDays, provider, referenceNumber, notes, lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
-private fun RenewalEventEntity.toBackup() = RenewalEventBackup(id, renewalId, titleSnapshot, previousDueEpochDay, newDueEpochDay, renewedAtMillis, notes)
-private fun RenewalEventBackup.toEntity() = RenewalEventEntity(id, renewalId, titleSnapshot, previousDueEpochDay, newDueEpochDay, renewedAtMillis, notes)
-
+private fun TrackItemEntity.toBackup(cipher: TextCipher) = TrackItemBackup(id, cipher.decrypt(name), category, quantity, cipher.decrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.decrypt(storageLocation), cipher.decrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis)
+private fun TrackItemBackup.toEntity(cipher: TextCipher) = TrackItemEntity(id, cipher.encrypt(name), category, quantity, cipher.encrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.encrypt(storageLocation), cipher.encrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis)
+private fun TrackEventEntity.toBackup(cipher: TextCipher) = TrackEventBackup(id, itemId, cipher.decrypt(itemNameSnapshot), outcome, quantity, cipher.decrypt(unit), timestampMillis, cipher.decrypt(notes))
+private fun TrackEventBackup.toEntity(cipher: TextCipher) = TrackEventEntity(id, itemId, cipher.encrypt(itemNameSnapshot), outcome, quantity, cipher.encrypt(unit), timestampMillis, cipher.encrypt(notes))
+private fun RenewalEntity.toBackup(cipher: TextCipher) = RenewalBackup(id, cipher.decrypt(title), type, dueEpochDay, reminderDays, cipher.decrypt(provider), cipher.decrypt(referenceNumber), cipher.decrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
+private fun RenewalBackup.toEntity(cipher: TextCipher) = RenewalEntity(id, cipher.encrypt(title), type, dueEpochDay, reminderDays, cipher.encrypt(provider), cipher.encrypt(referenceNumber), cipher.encrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
+private fun RenewalEventEntity.toBackup(cipher: TextCipher) = RenewalEventBackup(id, renewalId, cipher.decrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.decrypt(notes))
+private fun RenewalEventBackup.toEntity(cipher: TextCipher) = RenewalEventEntity(id, renewalId, cipher.encrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.encrypt(notes))

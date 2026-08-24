@@ -4,17 +4,19 @@ import androidx.room.withTransaction
 import com.everycue.core.database.EveryCueDatabase
 import com.everycue.core.database.RenewalEntity
 import com.everycue.core.database.RenewalEventEntity
+import com.everycue.core.security.TextCipher
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class RenewRepository(
     private val database: EveryCueDatabase,
+    private val cipher: TextCipher,
 ) : RenewStore {
     private val dao = database.renewalDao()
 
-    override val renewals: Flow<List<RenewalItem>> = dao.observeActiveRenewals().map { rows -> rows.map(RenewalEntity::toModel) }
-    override val events: Flow<List<RenewalEvent>> = dao.observeEvents().map { rows -> rows.map(RenewalEventEntity::toModel) }
+    override val renewals: Flow<List<RenewalItem>> = dao.observeActiveRenewals().map { rows -> rows.map { it.toModel(cipher) } }
+    override val events: Flow<List<RenewalEvent>> = dao.observeEvents().map { rows -> rows.map { it.toModel(cipher) } }
 
     override suspend fun save(draft: RenewalDraft, renewalId: String?): String {
         require(draft.title.isNotBlank()) { "Title is required." }
@@ -26,13 +28,13 @@ class RenewRepository(
         dao.upsertRenewal(
             RenewalEntity(
                 id = id,
-                title = draft.title.trim(),
+                title = cipher.encrypt(draft.title.trim()),
                 type = draft.type.name,
                 dueEpochDay = draft.dueEpochDay,
                 reminderDays = draft.reminderDays,
-                provider = draft.provider.trim(),
-                referenceNumber = draft.referenceNumber.trim(),
-                notes = draft.notes.trim(),
+                provider = cipher.encrypt(draft.provider.trim()),
+                referenceNumber = cipher.encrypt(draft.referenceNumber.trim()),
+                notes = cipher.encrypt(draft.notes.trim()),
                 lastRenewedEpochDay = existing?.lastRenewedEpochDay,
                 lifecycleStatus = "ACTIVE",
                 createdAtMillis = existing?.createdAtMillis ?: now,
@@ -62,7 +64,7 @@ class RenewRepository(
                     previousDueEpochDay = existing.dueEpochDay,
                     newDueEpochDay = newDueEpochDay,
                     renewedAtMillis = now,
-                    notes = notes.trim(),
+                    notes = cipher.encrypt(notes.trim()),
                 ),
             )
         }
@@ -80,27 +82,26 @@ class RenewRepository(
     }
 }
 
-private fun RenewalEntity.toModel() = RenewalItem(
+private fun RenewalEntity.toModel(cipher: TextCipher) = RenewalItem(
     id = id,
-    title = title,
+    title = cipher.decrypt(title),
     type = runCatching { RenewalType.valueOf(type) }.getOrDefault(RenewalType.OTHER),
     dueEpochDay = dueEpochDay,
     reminderDays = reminderDays,
-    provider = provider,
-    referenceNumber = referenceNumber,
-    notes = notes,
+    provider = cipher.decrypt(provider),
+    referenceNumber = cipher.decrypt(referenceNumber),
+    notes = cipher.decrypt(notes),
     lastRenewedEpochDay = lastRenewedEpochDay,
     createdAtMillis = createdAtMillis,
     updatedAtMillis = updatedAtMillis,
 )
 
-private fun RenewalEventEntity.toModel() = RenewalEvent(
+private fun RenewalEventEntity.toModel(cipher: TextCipher) = RenewalEvent(
     id = id,
     renewalId = renewalId,
-    title = titleSnapshot,
+    title = cipher.decrypt(titleSnapshot),
     previousDueEpochDay = previousDueEpochDay,
     newDueEpochDay = newDueEpochDay,
     renewedAtMillis = renewedAtMillis,
-    notes = notes,
+    notes = cipher.decrypt(notes),
 )
-

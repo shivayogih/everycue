@@ -4,20 +4,23 @@ import androidx.room.withTransaction
 import com.everycue.core.database.EveryCueDatabase
 import com.everycue.core.database.TrackEventEntity
 import com.everycue.core.database.TrackItemEntity
+import com.everycue.core.security.TextCipher
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class TrackRepository(
     private val database: EveryCueDatabase,
+    private val cipher: TextCipher,
 ) : TrackStore {
     private val dao = database.trackDao()
 
-    override val items: Flow<List<TrackItem>> = dao.observeActiveItems().map { entities -> entities.map(TrackItemEntity::toModel) }
-    override val events: Flow<List<TrackEvent>> = dao.observeEvents().map { entities -> entities.map(TrackEventEntity::toModel) }
+    override val items: Flow<List<TrackItem>> = dao.observeActiveItems().map { entities -> entities.map { it.toModel(cipher) } }
+    override val events: Flow<List<TrackEvent>> = dao.observeEvents().map { entities -> entities.map { it.toModel(cipher) } }
 
     override suspend fun save(draft: TrackDraft, itemId: String?): String {
         require(draft.name.isNotBlank()) { "Item name is required." }
+        require(draft.unit.isNotBlank()) { "Unit is required." }
         require(draft.quantity > 0) { "Quantity must be greater than zero." }
         require(draft.reminderDays >= 0) { "Reminder days cannot be negative." }
 
@@ -27,14 +30,14 @@ class TrackRepository(
         dao.upsertItem(
             TrackItemEntity(
                 id = id,
-                name = draft.name.trim(),
+                name = cipher.encrypt(draft.name.trim()),
                 category = draft.category.name,
                 quantity = draft.quantity,
-                unit = draft.unit.trim().ifBlank { "item" },
+                unit = cipher.encrypt(draft.unit.trim()),
                 purchaseEpochDay = draft.purchaseEpochDay,
                 expiryEpochDay = draft.expiryEpochDay,
-                storageLocation = draft.storageLocation.trim(),
-                notes = draft.notes.trim(),
+                storageLocation = cipher.encrypt(draft.storageLocation.trim()),
+                notes = cipher.encrypt(draft.notes.trim()),
                 reminderDays = draft.reminderDays,
                 lifecycleStatus = "ACTIVE",
                 createdAtMillis = existing?.createdAtMillis ?: now,
@@ -63,7 +66,7 @@ class TrackRepository(
                     quantity = item.quantity,
                     unit = item.unit,
                     timestampMillis = now,
-                    notes = note.trim(),
+                    notes = cipher.encrypt(note.trim()),
                 ),
             )
         }
@@ -81,32 +84,31 @@ class TrackRepository(
     }
 }
 
-private fun TrackItemEntity.toModel() = TrackItem(
+private fun TrackItemEntity.toModel(cipher: TextCipher) = TrackItem(
     id = id,
-    name = name,
+    name = cipher.decrypt(name),
     category = enumValueOrDefault(category, TrackCategory.OTHER),
     quantity = quantity,
-    unit = unit,
+    unit = cipher.decrypt(unit),
     purchaseEpochDay = purchaseEpochDay,
     expiryEpochDay = expiryEpochDay,
-    storageLocation = storageLocation,
-    notes = notes,
+    storageLocation = cipher.decrypt(storageLocation),
+    notes = cipher.decrypt(notes),
     reminderDays = reminderDays,
     createdAtMillis = createdAtMillis,
     updatedAtMillis = updatedAtMillis,
 )
 
-private fun TrackEventEntity.toModel() = TrackEvent(
+private fun TrackEventEntity.toModel(cipher: TextCipher) = TrackEvent(
     id = id,
     itemId = itemId,
-    itemName = itemNameSnapshot,
+    itemName = cipher.decrypt(itemNameSnapshot),
     outcome = enumValueOrDefault(outcome, TrackOutcome.DISCARDED),
     quantity = quantity,
-    unit = unit,
+    unit = cipher.decrypt(unit),
     timestampMillis = timestampMillis,
-    notes = notes,
+    notes = cipher.decrypt(notes),
 )
 
 private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
     runCatching { enumValueOf<T>(value) }.getOrDefault(default)
-

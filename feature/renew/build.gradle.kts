@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.everycue.feature.renew"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig { minSdk = 23 }
     buildFeatures { compose = true }
     compileOptions {
@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:database"))
+    implementation(project(":core:security"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -39,4 +40,3 @@ dependencies {
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
     testImplementation(libs.junit)
 }
-

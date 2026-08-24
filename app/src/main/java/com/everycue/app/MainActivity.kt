@@ -2,6 +2,8 @@ package com.everycue.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,6 +24,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (!BuildConfig.ALLOW_INSECURE_DEVICE) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            window.decorView.filterTouchesWhenObscured = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) window.setHideOverlayWindows(true)
+        }
+        val securityVerdict = DeviceSecurityGuard.verdict()
+        if (securityVerdict is DeviceSecurityVerdict.Blocked) {
+            setContent {
+                EveryCueTheme { SecurityBlockedScreen(securityVerdict.reason, onClose = ::finishAndRemoveTask) }
+            }
+            return
+        }
         val app = application as EveryCueApplication
         deepLink = intent.toEveryCueDeepLink()
 
@@ -82,4 +96,3 @@ private fun Intent.toEveryCueDeepLink(): AppDeepLink? {
     val itemId = getStringExtra(EXTRA_ITEM_ID) ?: return null
     return AppDeepLink(destination, itemId)
 }
-

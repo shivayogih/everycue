@@ -55,6 +55,7 @@ class ReminderWorker(
     parameters: WorkerParameters,
 ) : CoroutineWorker(appContext, parameters) {
     override suspend fun doWork(): Result {
+        if (!DeviceSecurityGuard.isAccessAllowed()) return Result.success()
         val app = applicationContext as EveryCueApplication
         val settings = app.settingsRepository.snapshot()
         if (!settings.remindersEnabled || !notificationsAllowed(applicationContext)) return Result.success()
@@ -145,4 +146,3 @@ fun createReminderChannel(context: Context) {
 fun notificationsAllowed(context: Context): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-

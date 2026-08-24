@@ -2,6 +2,7 @@ package com.everycue.feature.pack
 
 import android.content.Context
 import android.util.Log
+import com.everycue.core.security.TextCipher
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
@@ -22,7 +23,7 @@ private fun newId(): Long = UUID.randomUUID().mostSignificantBits and Long.MAX_V
 
 private val Context.packDataStore by preferencesDataStore(name = "everycue_pack_data")
 
-class PackRepository(context: Context) : PackStore {
+class PackRepository(context: Context, private val cipher: TextCipher) : PackStore {
     private val appContext = context.applicationContext
     private val dataKey = stringPreferencesKey("everycue_pack_json")
     private val backupKey = stringPreferencesKey("everycue_pack_json_backup")
@@ -188,7 +189,7 @@ class PackRepository(context: Context) : PackStore {
         appContext.packDataStore.edit { preferences ->
             val current = decode(preferences)
             preferences[dataKey]?.let { preferences[backupKey] = it }
-            preferences[dataKey] = json.encodeToString(transform(current))
+            preferences[dataKey] = cipher.encrypt(json.encodeToString(transform(current)))
         }
     }
 
@@ -198,10 +199,9 @@ class PackRepository(context: Context) : PackStore {
     }
 
     private fun decodeRaw(raw: String): PackData? = try {
-        json.decodeFromString<PackData>(raw)
+        json.decodeFromString<PackData>(cipher.decrypt(raw))
     } catch (error: SerializationException) {
         Log.e("PackRepository", "Could not decode local packing data", error)
         null
     }
 }
-

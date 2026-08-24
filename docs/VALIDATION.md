@@ -39,9 +39,9 @@ The two Pack source ZIPs were byte-identical. The project contained a useful sta
 ### Remaining Pack technical debt
 
 - Preferences DataStore stores the entire Pack graph as JSON. This is acceptable for a small offline list, but Room should be considered if search, large-list queries, migrations, custom templates, and relational history expand.
-- UI text is still mostly hard-coded and must be moved into string resources before localization.
 - User-authored templates and sharing remain roadmap work.
-- Text extraction to resources is still required before localization begins.
+
+All current user-visible Pack, Track, Renew, onboarding, profile, settings, validation, sharing, template, notification, and security copy is sourced from Android string resources. Technical identifiers, serialized enum names, file MIME types, date patterns, and internal exception diagnostics remain code constants where localization does not apply.
 
 ## Track validation
 
@@ -69,11 +69,20 @@ This avoids expanding Renew into finance, payments, automatic subscription detec
 
 ## Verified build
 
-The full Android project was validated locally with Android Studio's JDK 21 runtime, Android SDK Platform 36, AGP 9.3.2, Kotlin 2.4.10, and the checked-in Gradle 9.5.0 wrapper. The following gate completed successfully:
+The full Android project was validated locally with JDK 21, Android SDK Platform 37, AGP 9.3.2, Kotlin 2.4.10, Compose BOM 2026.08.00, and the checked-in Gradle 9.5.0 wrapper. The following gate completed successfully:
 
 ```bash
-./gradlew testDebugUnitTest lintDebug assembleDebug bundleRelease --no-daemon
+./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease --no-daemon
 ```
 
-This covers unit checks, Android lint for every module, Room schema generation, debug APK assembly, and a minified unsigned release AAB. GitHub Actions repeats the same gate on pull requests and pushes to `main`.
+This covers unit checks (including the release device-security evaluator), Android lint for every module, Room schema generation, debug APK assembly, and minified unsigned release APK/AAB packaging. GitHub Actions repeats the same gate on pull requests and pushes to `main`, and rejects a release APK or AAB above 12 MiB.
 
+Final unsigned artifacts from the validated source state:
+
+| Artifact | Bytes | SHA-256 |
+|---|---:|---|
+| Debug APK | 25,747,425 | `D3E308D43E6432FDB0406BC9733AE65140732C2DA9387EFB92DD13C9B8AB2A77` |
+| Minified release APK | 3,164,602 | `A52FC6124759612F844E27A250CCC73612FA9004591210F1F4713B02A368088C` |
+| Minified release AAB | 6,299,880 | `752FB8CD8E68287B494356F1B81428A50D72BB0386D5514D512E264BAE2C7D24` |
+
+Compared with the pre-optimization validation artifacts, the debug APK is 15.4% smaller and the AAB is 52.9% smaller. Google Play's device-specific download is expected to be smaller than the universal bundle upload because the Play delivery pipeline serves split APKs.

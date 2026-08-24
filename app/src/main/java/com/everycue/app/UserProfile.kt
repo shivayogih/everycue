@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.everycue.core.security.TextCipher
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -60,7 +61,7 @@ interface UserProfileStore {
     suspend fun replace(value: LocalProfile?)
 }
 
-class LocalUserProfileRepository(context: Context) : UserProfileStore {
+class LocalUserProfileRepository(context: Context, private val cipher: TextCipher) : UserProfileStore {
     private val appContext = context.applicationContext
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     private val profileKey = stringPreferencesKey("local_profile_json")
@@ -68,7 +69,7 @@ class LocalUserProfileRepository(context: Context) : UserProfileStore {
     override val profile: Flow<LocalProfile?> = appContext.profileDataStore.data
         .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
         .map { preferences ->
-            preferences[profileKey]?.let { raw -> runCatching { json.decodeFromString<LocalProfile>(raw) }.getOrNull() }
+            preferences[profileKey]?.let { raw -> runCatching { json.decodeFromString<LocalProfile>(cipher.decrypt(raw)) }.getOrNull() }
         }
 
     override suspend fun snapshot(): LocalProfile? = profile.first()
@@ -89,8 +90,7 @@ class LocalUserProfileRepository(context: Context) : UserProfileStore {
     override suspend fun replace(value: LocalProfile?) {
         appContext.profileDataStore.edit { preferences ->
             if (value == null) preferences.remove(profileKey)
-            else preferences[profileKey] = json.encodeToString(value)
+            else preferences[profileKey] = cipher.encrypt(json.encodeToString(value))
         }
     }
 }
-

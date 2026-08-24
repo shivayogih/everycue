@@ -29,6 +29,10 @@ class EveryCueWidgetProvider : AppWidgetProvider() {
 
     companion object {
         suspend fun updateAll(context: Context) {
+            if (!DeviceSecurityGuard.isAccessAllowed()) {
+                clearSensitiveCounts(context)
+                return
+            }
             val app = context.applicationContext as EveryCueApplication
             val trackItems = app.trackRepository.items.first()
             val renewals = app.renewRepository.renewals.first()
@@ -56,6 +60,20 @@ class EveryCueWidgetProvider : AppWidgetProvider() {
                 manager.updateAppWidget(widgetId, views)
             }
         }
+
+        private fun clearSensitiveCounts(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, EveryCueWidgetProvider::class.java)
+            manager.getAppWidgetIds(component).forEach { widgetId ->
+                val blocked = context.getString(R.string.security_blocked_count)
+                val views = RemoteViews(context.packageName, R.layout.widget_everycue).apply {
+                    setTextViewText(R.id.widget_track_count, blocked)
+                    setTextViewText(R.id.widget_pack_count, blocked)
+                    setTextViewText(R.id.widget_renew_count, blocked)
+                    setOnClickPendingIntent(R.id.widget_root, null)
+                }
+                manager.updateAppWidget(widgetId, views)
+            }
+        }
     }
 }
-

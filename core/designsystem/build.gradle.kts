@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.everycue.core.designsystem"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig { minSdk = 23 }
     buildFeatures { compose = true }
     compileOptions {
@@ -22,4 +22,3 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
 }
-

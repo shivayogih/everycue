@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.everycue.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.everycue.app"
         minSdk = 23
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 2
         versionName = "0.2.0"
 
@@ -23,10 +23,12 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            buildConfigField("boolean", "ALLOW_INSECURE_DEVICE", "true")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            buildConfigField("boolean", "ALLOW_INSECURE_DEVICE", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -59,6 +61,7 @@ dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:database"))
+    implementation(project(":core:security"))
     implementation(project(":feature:track"))
     implementation(project(":feature:pack"))
     implementation(project(":feature:renew"))
@@ -93,4 +96,3 @@ dependencies {
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }
-

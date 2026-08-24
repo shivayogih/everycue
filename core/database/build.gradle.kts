@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.everycue.core.database"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 23
@@ -32,4 +32,3 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
 }
-

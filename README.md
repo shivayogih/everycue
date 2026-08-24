@@ -28,7 +28,9 @@ Implemented in this source package:
 | Portability | Versioned JSON export/restore through Android's document picker |
 | Local identity | Editable name, phone, email, five-line address, pincode, and opt-in text sharing |
 | Widget | Home-screen summary for urgent, unpacked, and due counts |
-| Privacy posture | Offline-first, no login, backend, ads, analytics, or cloud sync |
+| Security | AES-256-GCM data encryption with an Android Keystore key; release root/emulator gate and secure-window controls |
+| Size | R8/resource shrinking plus optimized 1024 px WebP onboarding artwork; Play-delivered builds use AAB splits |
+| Privacy posture | Offline-first, no login, backend, ads, analytics, or cloud sync; OS backup disabled |
 | Unit checks | Expiry/due boundaries, insights, backup format, reminder schedule, and packing progress |
 
 Not yet implemented:
@@ -45,6 +47,7 @@ Not yet implemented:
 :core:navigation
 :core:designsystem
 :core:database
+:core:security
 :feature:track
 :feature:pack
 :feature:renew
@@ -55,14 +58,16 @@ Each feature uses a domain-facing store interface, a persistence implementation,
 ## Technology baseline
 
 - Kotlin 2.4.10
-- Jetpack Compose + Material 3
+- Jetpack Compose BOM 2026.08.00 + Material 3
 - Navigation 3 1.1.6
 - Room 2.8.4
 - Preferences DataStore 1.2.1
 - Coroutines, Flow, and StateFlow
 - AGP 9.3.2 / Gradle 9.5.0
-- minSdk 23 / compileSdk and targetSdk 36
+- minSdk 23 / compileSdk and targetSdk 37
 - JDK 21
+
+Release builds enable code and resource shrinking. The full-resolution generated onboarding sources are retained under `artwork/onboarding-source`; only optimized WebP derivatives are packaged in the Android app.
 
 ## Build
 
@@ -91,4 +96,3 @@ The wrapper-generation helper under `scripts/` is only needed when intentionally
 The Pack feature was migrated from the attached PackMate Navigation 3 project. Track was built from the attached expiry-tracker product plan. Renew is a narrow first specification created for this EveryCue foundation because no separate Renew requirements/code were supplied.
 
 See `docs/VALIDATION.md` and `docs/SCAN_DESIGN_REVIEW.md`.
-

@@ -56,7 +56,7 @@ The source keeps feature routes, screens, repositories, and entry builders toget
 - Preferences DataStore 1.2.1
 - Coroutines, Flow, and StateFlow
 - AGP 9.3.2 / Gradle 9.5.0
-- minSdk 23 / compileSdk and targetSdk 37
+- minSdk 23 / compileSdk and targetSdk 36
 - JDK 21
 
 ## Build
@@ -65,7 +65,7 @@ This foundation includes the standard Gradle 9.5.0 wrapper and a GitHub Actions 
 
 Local options:
 
-1. Install JDK 21 and Android SDK Platform 37, or open the project in a compatible Android Studio.
+1. Install JDK 21 and Android SDK Platform 36, or open the project in a compatible Android Studio.
 2. Run the checked-in wrapper:
 
 ```bash

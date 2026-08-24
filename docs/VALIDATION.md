@@ -69,7 +69,7 @@ This avoids expanding Renew into finance, payments, automatic subscription detec
 
 ## Verified build
 
-The full Android project was validated locally with Android Studio's JDK 21 runtime, Android SDK Platform 37, AGP 9.3.2, Kotlin 2.4.10, and the checked-in Gradle 9.5.0 wrapper. The following gate completed successfully:
+The full Android project was validated locally with Android Studio's JDK 21 runtime, Android SDK Platform 36, AGP 9.3.2, Kotlin 2.4.10, and the checked-in Gradle 9.5.0 wrapper. The following gate completed successfully:
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon

@@ -23,6 +23,8 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:database"))
     implementation(project(":core:security"))
+    implementation(project(":core:extraction"))
+    implementation(project(":core:attachments"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

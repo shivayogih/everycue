@@ -62,6 +62,8 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:database"))
     implementation(project(":core:security"))
+    implementation(project(":core:extraction"))
+    implementation(project(":core:attachments"))
     implementation(project(":feature:track"))
     implementation(project(":feature:pack"))
     implementation(project(":feature:renew"))

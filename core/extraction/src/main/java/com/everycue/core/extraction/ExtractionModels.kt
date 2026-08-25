@@ -75,12 +75,17 @@ data class DateExtractionResult(
 }
 
 data class RenewalExtractionDraft(
+    val typeName: ExtractedField<String>? = null,
     val title: ExtractedField<String>? = null,
     val provider: ExtractedField<String>? = null,
     val referenceNumber: ExtractedField<String>? = null,
     val startDate: ExtractedDate? = null,
     val dueDate: ExtractedDate? = null,
-)
+) {
+    val hasCandidates: Boolean
+        get() = typeName != null || title != null || provider != null || referenceNumber != null ||
+            startDate != null || dueDate != null
+}
 
 data class SmartAddDraft(
     val token: Long,
@@ -96,4 +101,3 @@ data class SmartAddDraft(
     val barcode: ExtractedField<String>? = null,
     val possibleDuplicateIds: List<String> = emptyList(),
 )
-

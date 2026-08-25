@@ -10,6 +10,7 @@
 - CI artifacts: debug APK, unsigned release APK, and unsigned release AAB
 - CI size ceiling: release APK and AAB must each remain at or below 12 MiB
 - Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
+- Renewal Capture tests: labeled and heading-based fields, type inference, no-candidate handling, and mandatory review state
 - Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement
 - Backup archive tests: attachment byte round-trip, manifest compatibility, checksum/size validation, safe paths, duplicate rejection, and failed-restore cleanup
 - Room 1→2→3 migrations retain Track/Renew data, add an optional encrypted barcode, preserve outcome category evidence, and add local coaching preferences
@@ -35,6 +36,7 @@
 - Inspect logs and crash breadcrumbs after OCR failure; confirm no OCR text, document reference, or sensitive number appears
 - Confirm discarded camera captures are removed and attachment removal leaves the original gallery/document file intact
 - Test Smart Add before and after Google Play services model download; verify cancellation and model failure return to manual entry
+- Test Renewal Capture with camera and imported images for documents, insurance, warranties, memberships, subscriptions, and certificates; verify fields and dates remain editable, review is required, manual fallback works, and rotation does not reapply OCR over user edits
 - Verify Use Next never displays an expired item, explains every ranking, preserves category filters across rotation, and opens the correct item detail
 - Verify Waste Coach stays silent below thresholds, never estimates money without price data, updates after outcomes, and persists dismiss/mute/restore controls after restart
 

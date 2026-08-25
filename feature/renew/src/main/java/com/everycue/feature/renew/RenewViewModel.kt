@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.everycue.core.attachments.AttachmentError
 import com.everycue.core.attachments.LocalAttachment
+import com.everycue.core.extraction.ExtractionSourceType
+import com.everycue.core.extraction.RenewalTextExtractor
 
 sealed interface RenewIntent {
     data class Save(val draft: RenewalDraft, val renewalId: String?) : RenewIntent
@@ -20,6 +22,9 @@ sealed interface RenewIntent {
     data class AddAttachment(val attachment: LocalAttachment) : RenewIntent
     data class RemoveAttachment(val attachmentId: String) : RenewIntent
     data class AttachmentImportFailed(val error: AttachmentError) : RenewIntent
+    data class ApplyRecognizedText(val text: String, val sourceType: ExtractionSourceType) : RenewIntent
+    data class CaptureFailed(val failure: RenewCaptureFailure) : RenewIntent
+    data object ClearCaptureDraft : RenewIntent
 }
 
 sealed interface RenewEffect {
@@ -33,17 +38,25 @@ sealed interface RenewEffect {
 
 class RenewViewModel(private val repository: RenewStore) : ViewModel() {
     private val busy = MutableStateFlow(false)
+    private val captureDraft = MutableStateFlow<RenewalCaptureDraft?>(null)
     private val effectChannel = Channel<RenewEffect>(Channel.BUFFERED)
     val effects = effectChannel.receiveAsFlow()
 
-    val state = combine(repository.renewals, repository.events, repository.attachments, busy) { renewals, events, attachments, isBusy ->
-        RenewUiState(renewals = renewals, events = events, attachments = attachments, isBusy = isBusy)
+    val state = combine(repository.renewals, repository.events, repository.attachments, captureDraft, busy) { renewals, events, attachments, draft, isBusy ->
+        RenewUiState(
+            renewals = renewals,
+            events = events,
+            attachments = attachments,
+            captureDraft = draft,
+            isBusy = isBusy,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RenewUiState())
 
     fun onIntent(intent: RenewIntent) {
         when (intent) {
             is RenewIntent.Save -> execute {
                 val id = repository.save(intent.draft, intent.renewalId)
+                captureDraft.value = null
                 effectChannel.send(RenewEffect.Saved(id, intent.renewalId != null))
             }
             is RenewIntent.MarkRenewed -> execute {
@@ -65,6 +78,22 @@ class RenewViewModel(private val repository: RenewStore) : ViewModel() {
             is RenewIntent.AttachmentImportFailed -> viewModelScope.launch {
                 effectChannel.send(RenewEffect.ShowError(intent.error.messageResource()))
             }
+            is RenewIntent.ApplyRecognizedText -> {
+                val extraction = RenewalTextExtractor.extract(intent.text)
+                if (extraction.hasCandidates) {
+                    captureDraft.value = RenewalCaptureDraft(
+                        token = System.nanoTime(),
+                        sourceType = intent.sourceType,
+                        extraction = extraction,
+                    )
+                } else {
+                    onIntent(RenewIntent.CaptureFailed(RenewCaptureFailure.NO_RESULT))
+                }
+            }
+            is RenewIntent.CaptureFailed -> viewModelScope.launch {
+                effectChannel.send(RenewEffect.ShowError(intent.failure.messageResource()))
+            }
+            RenewIntent.ClearCaptureDraft -> captureDraft.value = null
         }
     }
 
@@ -103,3 +132,9 @@ private fun AttachmentError.messageResource(): Int = when (this) {
     AttachmentError.INVALID_REFERENCE, AttachmentError.COPY_FAILED -> R.string.attachment_copy_failed
 }
 
+private fun RenewCaptureFailure.messageResource(): Int = when (this) {
+    RenewCaptureFailure.MODEL_UNAVAILABLE -> R.string.renew_capture_model_unavailable
+    RenewCaptureFailure.IMAGE_UNREADABLE -> R.string.renew_capture_image_unreadable
+    RenewCaptureFailure.NO_RESULT -> R.string.renew_capture_no_result
+    RenewCaptureFailure.CANCELLED -> R.string.renew_capture_cancelled
+}

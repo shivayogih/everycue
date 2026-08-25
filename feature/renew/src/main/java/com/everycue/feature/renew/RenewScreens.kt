@@ -50,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,7 @@ import com.everycue.core.designsystem.MetricCard
 import com.everycue.core.designsystem.SectionHeader
 import com.everycue.core.designsystem.DismissKeyboardOnScroll
 import com.everycue.core.designsystem.rememberKeyboardDismissAction
+import com.everycue.core.extraction.ExtractionSourceType
 import java.time.LocalDate
 
 @Composable
@@ -325,8 +327,12 @@ private fun RenewalCard(item: RenewalItem, onClick: () -> Unit) {
 @Composable
 fun RenewEditorScreen(
     existing: RenewalItem?,
+    captureDraft: RenewalCaptureDraft? = null,
     onBack: () -> Unit,
     onSave: (RenewalDraft) -> Unit,
+    onCaptureRenewal: () -> Unit = {},
+    onImportRenewalImage: () -> Unit = {},
+    onClearCaptureDraft: () -> Unit = {},
 ) {
     var title by rememberSaveable(existing?.id) { mutableStateOf(existing?.title.orEmpty()) }
     var typeName by rememberSaveable(existing?.id) { mutableStateOf(existing?.type?.name ?: RenewalType.DOCUMENT.name) }
@@ -337,6 +343,8 @@ fun RenewEditorScreen(
     var notes by rememberSaveable(existing?.id) { mutableStateOf(existing?.notes.orEmpty()) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var attemptedSubmit by rememberSaveable(existing?.id) { mutableStateOf(false) }
+    var captureReviewed by rememberSaveable(existing?.id) { mutableStateOf(captureDraft == null) }
+    var appliedCaptureToken by rememberSaveable(existing?.id) { mutableStateOf<Long?>(null) }
     val scrollState = rememberScrollState()
     val dismissKeyboard = rememberKeyboardDismissAction()
     val reminder = reminderDays.toIntOrNull()
@@ -351,6 +359,24 @@ fun RenewEditorScreen(
     )
     val validation = candidate.validationErrors()
 
+    LaunchedEffect(captureDraft?.token, existing?.id) {
+        val draft = captureDraft ?: return@LaunchedEffect
+        if (appliedCaptureToken == draft.token) return@LaunchedEffect
+        draft.extraction.title?.value?.let { title = it.take(100) }
+        draft.extraction.typeName?.value?.let { value ->
+            runCatching { RenewalType.valueOf(value) }.getOrNull()?.let { typeName = it.name }
+        }
+        draft.extraction.dueDate?.field?.value?.let { dueEpochDay = it.toEpochDay() }
+        draft.extraction.provider?.value?.let { provider = it.take(100) }
+        draft.extraction.referenceNumber?.value?.let { value ->
+            reference = value.take(80).filter { character ->
+                character.isLetterOrDigit() || character.isWhitespace() || character in setOf('.', '/', '_', '-')
+            }
+        }
+        captureReviewed = false
+        appliedCaptureToken = draft.token
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(if (existing == null) R.string.add_renewal else R.string.edit_renewal)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
         bottomBar = {
@@ -358,7 +384,7 @@ fun RenewEditorScreen(
                 Button(
                     onClick = {
                         attemptedSubmit = true
-                        if (validation.isValid) {
+                        if (validation.isValid && captureReviewed) {
                             dismissKeyboard()
                             onSave(candidate)
                         }
@@ -372,6 +398,78 @@ fun RenewEditorScreen(
             modifier = Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(scrollState).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            SectionHeader(stringResource(R.string.renew_capture_title))
+            Text(
+                stringResource(R.string.renew_capture_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedButton(onClick = onCaptureRenewal, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Text(stringResource(R.string.renew_capture_camera))
+                }
+                OutlinedButton(onClick = onImportRenewalImage, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.AttachFile, contentDescription = null)
+                    Text(stringResource(R.string.renew_capture_image))
+                }
+            }
+            captureDraft?.let { draft ->
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            stringResource(
+                                when (draft.sourceType) {
+                                    ExtractionSourceType.CAMERA_OCR -> R.string.renew_capture_source_camera
+                                    ExtractionSourceType.IMAGE_OCR, ExtractionSourceType.DOCUMENT_OCR -> R.string.renew_capture_source_image
+                                    else -> R.string.renew_capture_source_other
+                                },
+                            ),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(stringResource(R.string.renew_capture_review_help), style = MaterialTheme.typography.bodySmall)
+                        draft.extraction.startDate?.field?.value?.let { startDate ->
+                            Text(stringResource(R.string.renew_capture_start_date, startDate.toEpochDay().asRenewDateLabel()))
+                        }
+                        if (draft.extraction.dueDate == null) {
+                            Text(
+                                stringResource(R.string.renew_capture_due_missing),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (!captureReviewed) {
+                            Button(onClick = { captureReviewed = true }) {
+                                Text(stringResource(R.string.renew_capture_confirm_review))
+                            }
+                        }
+                        TextButton(
+                            onClick = {
+                                title = existing?.title.orEmpty()
+                                typeName = existing?.type?.name ?: RenewalType.DOCUMENT.name
+                                dueEpochDay = existing?.dueEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()
+                                reminderDays = (existing?.reminderDays ?: DEFAULT_RENEW_WARNING_DAYS).toString()
+                                provider = existing?.provider.orEmpty()
+                                reference = existing?.referenceNumber.orEmpty()
+                                notes = existing?.notes.orEmpty()
+                                captureReviewed = true
+                                appliedCaptureToken = null
+                                onClearCaptureDraft()
+                            },
+                        ) { Text(stringResource(R.string.renew_capture_clear)) }
+                    }
+                }
+            }
+            if (attemptedSubmit && !captureReviewed) {
+                Text(stringResource(R.string.renew_capture_review_required), color = MaterialTheme.colorScheme.error)
+            }
             OutlinedTextField(
                 title,
                 { title = it.take(100) },
@@ -738,4 +836,3 @@ fun DeleteRenewalDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
-

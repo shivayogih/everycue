@@ -5,6 +5,8 @@ import com.everycue.core.attachments.AttachmentOwner
 import com.everycue.core.attachments.AttachmentOwnerType
 import com.everycue.core.attachments.AttachmentSource
 import com.everycue.core.attachments.LocalAttachment
+import com.everycue.core.extraction.ExtractionSourceType
+import com.everycue.core.extraction.RenewalExtractionDraft
 import java.time.LocalDate
 
 const val DEFAULT_RENEW_WARNING_DAYS = 30
@@ -81,6 +83,19 @@ class RenewalValidationException(@StringRes val messageResource: Int) : IllegalA
 
 class RenewalAttachmentLimitException : IllegalStateException()
 
+enum class RenewCaptureFailure {
+    MODEL_UNAVAILABLE,
+    IMAGE_UNREADABLE,
+    NO_RESULT,
+    CANCELLED,
+}
+
+data class RenewalCaptureDraft(
+    val token: Long,
+    val sourceType: ExtractionSourceType,
+    val extraction: RenewalExtractionDraft,
+)
+
 data class RenewalEvent(
     val id: String,
     val renewalId: String,
@@ -117,6 +132,7 @@ data class RenewUiState(
     val renewals: List<RenewalItem> = emptyList(),
     val events: List<RenewalEvent> = emptyList(),
     val attachments: List<RenewalAttachment> = emptyList(),
+    val captureDraft: RenewalCaptureDraft? = null,
     val isBusy: Boolean = false,
 ) {
     val overdueCount: Int get() = renewals.count { it.dueState() == DueState.OVERDUE }
@@ -126,4 +142,3 @@ data class RenewUiState(
     fun attachmentsFor(renewalId: String): List<RenewalAttachment> =
         attachments.filter { it.renewalId == renewalId }
 }
-

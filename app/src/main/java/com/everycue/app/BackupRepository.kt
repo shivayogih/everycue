@@ -9,6 +9,11 @@ import com.everycue.core.database.RenewalEventEntity
 import com.everycue.core.database.TrackEventEntity
 import com.everycue.core.database.TrackItemEntity
 import com.everycue.core.database.TrackCoachPreferenceEntity
+import com.everycue.core.attachments.AttachmentOwner
+import com.everycue.core.attachments.AttachmentOwnerType
+import com.everycue.core.attachments.AttachmentSource
+import com.everycue.core.attachments.AttachmentStore
+import com.everycue.core.attachments.LocalAttachment
 import com.everycue.core.security.TextCipher
 import com.everycue.feature.pack.PackData
 import com.everycue.feature.pack.PackStore
@@ -86,6 +91,7 @@ class BackupRepository(
     private val settingsRepository: SettingsStore,
     private val userProfileStore: UserProfileStore,
     private val cipher: TextCipher,
+    private val attachmentStore: AttachmentStore,
 ) : BackupStore {
     private val resolver = context.applicationContext.contentResolver
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true; prettyPrint = true }
@@ -119,13 +125,32 @@ class BackupRepository(
         require(payload.renewals.distinctBy { it.id }.size == payload.renewals.size) { "Backup contains duplicate Renew IDs." }
         payload.validateUserData()
 
+        val renewalDao = database.renewalDao()
+        renewalDao.getAllAttachments().forEach { attachment ->
+            runCatching {
+                attachmentStore.remove(
+                    LocalAttachment(
+                        id = attachment.id,
+                        owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, attachment.renewalId),
+                        displayName = cipher.decrypt(attachment.displayName),
+                        mimeType = attachment.mimeType,
+                        sizeBytes = attachment.sizeBytes,
+                        localReference = cipher.decrypt(attachment.localReference),
+                        createdAtMillis = attachment.createdAtMillis,
+                        source = runCatching { AttachmentSource.valueOf(attachment.source) }
+                            .getOrDefault(AttachmentSource.DOCUMENT),
+                    ),
+                )
+            }
+        }
+
         database.withTransaction {
             val trackDao = database.trackDao()
-            val renewalDao = database.renewalDao()
             trackDao.deleteAllEvents()
             trackDao.deleteAllItems()
             trackDao.deleteAllCoachPreferences()
             renewalDao.deleteAllEvents()
+            renewalDao.deleteAllAttachments()
             renewalDao.deleteAllRenewals()
             trackDao.upsertItems(payload.trackItems.map { it.toEntity(cipher) })
             trackDao.upsertEvents(payload.trackEvents.map { it.toEntity(cipher) })
@@ -200,3 +225,4 @@ private fun RenewalEntity.toBackup(cipher: TextCipher) = RenewalBackup(id, ciphe
 private fun RenewalBackup.toEntity(cipher: TextCipher) = RenewalEntity(id, cipher.encrypt(title), type, dueEpochDay, reminderDays, cipher.encrypt(provider), cipher.encrypt(referenceNumber), cipher.encrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
 private fun RenewalEventEntity.toBackup(cipher: TextCipher) = RenewalEventBackup(id, renewalId, cipher.decrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.decrypt(notes))
 private fun RenewalEventBackup.toEntity(cipher: TextCipher) = RenewalEventEntity(id, renewalId, cipher.encrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.encrypt(notes))
+

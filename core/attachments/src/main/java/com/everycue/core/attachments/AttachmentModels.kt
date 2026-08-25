@@ -1,6 +1,7 @@
 package com.everycue.core.attachments
 
 import android.net.Uri
+import java.io.File
 import java.io.InputStream
 
 enum class AttachmentOwnerType {
@@ -63,4 +64,9 @@ interface AttachmentStore {
     suspend fun remove(attachment: LocalAttachment): Boolean
     suspend fun open(attachment: LocalAttachment): InputStream
     suspend fun cleanupTemporaryCaptures(olderThanMillis: Long): Int
+    /** Returns only a validated app-owned file for FileProvider; never an arbitrary path. */
+    fun contentFile(attachment: LocalAttachment): File
+    fun createTemporaryCaptureFile(): File
+    fun removeTemporaryCapture(file: File): Boolean
 }
+

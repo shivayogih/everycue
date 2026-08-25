@@ -3,7 +3,12 @@ package com.everycue.feature.renew
 import androidx.room.withTransaction
 import com.everycue.core.database.EveryCueDatabase
 import com.everycue.core.database.RenewalEntity
+import com.everycue.core.database.RenewalAttachmentEntity
 import com.everycue.core.database.RenewalEventEntity
+import com.everycue.core.attachments.AttachmentOwnerType
+import com.everycue.core.attachments.AttachmentSource
+import com.everycue.core.attachments.AttachmentStore
+import com.everycue.core.attachments.LocalAttachment
 import com.everycue.core.security.TextCipher
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -12,11 +17,14 @@ import kotlinx.coroutines.flow.map
 class RenewRepository(
     private val database: EveryCueDatabase,
     private val cipher: TextCipher,
+    private val attachmentStore: AttachmentStore,
 ) : RenewStore {
     private val dao = database.renewalDao()
 
     override val renewals: Flow<List<RenewalItem>> = dao.observeActiveRenewals().map { rows -> rows.map { it.toModel(cipher) } }
     override val events: Flow<List<RenewalEvent>> = dao.observeEvents().map { rows -> rows.map { it.toModel(cipher) } }
+    override val attachments: Flow<List<RenewalAttachment>> =
+        dao.observeAttachments().map { rows -> rows.map { it.toModel(cipher) } }
 
     override suspend fun save(draft: RenewalDraft, renewalId: String?): String {
         draft.validate()
@@ -72,16 +80,69 @@ class RenewRepository(
     }
 
     override suspend fun delete(renewalId: String) {
-        dao.getRenewal(renewalId)?.let { dao.deleteRenewal(it) }
+        val attachments = dao.getAttachments(renewalId)
+        attachments.forEach { attachmentStore.remove(it.toModel(cipher).asLocalAttachment()) }
+        database.withTransaction {
+            dao.deleteAttachmentsForRenewal(renewalId)
+            dao.getRenewal(renewalId)?.let { dao.deleteRenewal(it) }
+        }
+    }
+
+    override suspend fun addAttachment(attachment: LocalAttachment) {
+        require(attachment.owner.type == AttachmentOwnerType.RENEWAL)
+        val renewalId = attachment.owner.id
+        try {
+            database.withTransaction {
+                require(dao.getRenewal(renewalId) != null)
+                if (dao.getAttachments(renewalId).size >= MAX_RENEWAL_ATTACHMENTS) {
+                    throw RenewalAttachmentLimitException()
+                }
+                dao.upsertAttachment(attachment.toEntity(cipher))
+            }
+        } catch (error: Throwable) {
+            attachmentStore.remove(attachment)
+            throw error
+        }
+    }
+
+    override suspend fun removeAttachment(attachmentId: String) {
+        val entity = dao.getAttachment(attachmentId) ?: return
+        attachmentStore.remove(entity.toModel(cipher).asLocalAttachment())
+        dao.deleteAttachment(attachmentId)
     }
 
     override suspend fun clearAll() {
+        val attachments = dao.getAllAttachments()
+        attachments.forEach { attachmentStore.remove(it.toModel(cipher).asLocalAttachment()) }
         database.withTransaction {
+            dao.deleteAllAttachments()
             dao.deleteAllEvents()
             dao.deleteAllRenewals()
         }
     }
 }
+
+private fun LocalAttachment.toEntity(cipher: TextCipher) = RenewalAttachmentEntity(
+    id = id,
+    renewalId = owner.id,
+    displayName = cipher.encrypt(displayName),
+    mimeType = mimeType,
+    sizeBytes = sizeBytes,
+    localReference = cipher.encrypt(localReference),
+    createdAtMillis = createdAtMillis,
+    source = source.name,
+)
+
+private fun RenewalAttachmentEntity.toModel(cipher: TextCipher) = RenewalAttachment(
+    id = id,
+    renewalId = renewalId,
+    displayName = cipher.decrypt(displayName),
+    mimeType = mimeType,
+    sizeBytes = sizeBytes,
+    localReference = cipher.decrypt(localReference),
+    createdAtMillis = createdAtMillis,
+    source = runCatching { AttachmentSource.valueOf(source) }.getOrDefault(AttachmentSource.DOCUMENT),
+)
 
 private fun RenewalEntity.toModel(cipher: TextCipher) = RenewalItem(
     id = id,
@@ -106,3 +167,4 @@ private fun RenewalEventEntity.toModel(cipher: TextCipher) = RenewalEvent(
     renewedAtMillis = renewedAtMillis,
     notes = cipher.decrypt(notes),
 )
+

@@ -20,11 +20,19 @@ class EveryCueApplication : Application() {
     val attachmentStore by lazy { AppPrivateAttachmentStore(this) }
     val trackRepository: TrackRepository by lazy { TrackRepository(database, textCipher) }
     val packRepository: PackRepository by lazy { PackRepository(this, textCipher) }
-    val renewRepository: RenewRepository by lazy { RenewRepository(database, textCipher) }
+    val renewRepository: RenewRepository by lazy { RenewRepository(database, textCipher, attachmentStore) }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
     val userProfileRepository: LocalUserProfileRepository by lazy { LocalUserProfileRepository(this, textCipher) }
     val backupRepository: BackupRepository by lazy {
-        BackupRepository(this, database, packRepository, settingsRepository, userProfileRepository, textCipher)
+        BackupRepository(
+            this,
+            database,
+            packRepository,
+            settingsRepository,
+            userProfileRepository,
+            textCipher,
+            attachmentStore,
+        )
     }
 
     override fun onCreate() {
@@ -40,3 +48,4 @@ class EveryCueApplication : Application() {
         }
     }
 }
+

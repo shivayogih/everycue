@@ -85,3 +85,19 @@ data class RenewalEventEntity(
     val renewedAtMillis: Long,
     val notes: String,
 )
+
+@Entity(
+    tableName = "renewal_attachments",
+    indices = [Index("renewalId"), Index("createdAtMillis")],
+)
+data class RenewalAttachmentEntity(
+    @PrimaryKey val id: String,
+    val renewalId: String,
+    val displayName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val localReference: String,
+    val createdAtMillis: Long,
+    val source: String,
+)
+

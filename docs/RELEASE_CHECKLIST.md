@@ -9,6 +9,7 @@
 - `bundleRelease` with minification and resource shrinking
 - CI artifacts: debug APK, unsigned release APK, and unsigned release AAB
 - CI size ceiling: release APK and AAB must each remain at or below 12 MiB
+- CI merged-manifest gate: OS backup and cleartext remain disabled; app-level internet and network-state permissions remain absent
 - Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
 - Renewal Capture tests: labeled and heading-based fields, type inference, no-candidate handling, and mandatory review state
 - Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement

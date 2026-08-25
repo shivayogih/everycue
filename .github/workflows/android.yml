@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "dev"]
   pull_request:
 
 permissions:
@@ -45,6 +45,16 @@ jobs:
           release_aab="app/build/outputs/bundle/release/app-release.aab"
           test "$(stat -c%s "$release_apk")" -le $((12 * 1024 * 1024))
           test "$(stat -c%s "$release_aab")" -le $((12 * 1024 * 1024))
+
+      - name: Enforce release privacy manifest
+        shell: bash
+        run: |
+          manifest="app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml"
+          test -f "$manifest"
+          grep -q 'android:allowBackup="false"' "$manifest"
+          grep -q 'android:usesCleartextTraffic="false"' "$manifest"
+          ! grep -q 'android.permission.INTERNET' "$manifest"
+          ! grep -q 'android.permission.ACCESS_NETWORK_STATE' "$manifest"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7

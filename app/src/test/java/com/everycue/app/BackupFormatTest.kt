@@ -5,6 +5,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupFormatTest {
@@ -22,5 +23,23 @@ class BackupFormatTest {
         )
         val json = Json { encodeDefaults = true }
         assertEquals(source, json.decodeFromString<EveryCueBackup>(json.encodeToString(source)))
+    }
+
+    @Test
+    fun legacyJsonWithoutAttachmentFieldRemainsReadable() {
+        val source = EveryCueBackup(
+            formatVersion = 1,
+            exportedAtMillis = 1234,
+            trackItems = emptyList(),
+            trackEvents = emptyList(),
+            renewals = emptyList(),
+            renewalEvents = emptyList(),
+            pack = PackData(),
+            settings = AppSettings(),
+        )
+        val legacyJson = Json { encodeDefaults = false }.encodeToString(source)
+
+        assertTrue("renewalAttachments" !in legacyJson)
+        assertEquals(emptyList<RenewalAttachmentBackup>(), Json { ignoreUnknownKeys = true }.decodeFromString<EveryCueBackup>(legacyJson).renewalAttachments)
     }
 }

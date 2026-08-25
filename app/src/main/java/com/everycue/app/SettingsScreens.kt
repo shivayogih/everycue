@@ -72,7 +72,7 @@ fun SettingsScreen(
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) onIntent(SettingsIntent.SetReminders(true)) }
-    val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { it?.let { uri -> onIntent(SettingsIntent.Export(uri)) } }
+    val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { it?.let { uri -> onIntent(SettingsIntent.Export(uri)) } }
     val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { if (it != null) pendingImport = it }
     pendingImport?.let { uri ->
         AlertDialog(
@@ -176,13 +176,13 @@ fun SettingsScreen(
                         Text(stringResource(R.string.backup_restore), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(stringResource(R.string.backup_summary), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(
-                            onClick = { exportFile.launch("everycue-backup-${LocalDate.now()}.json") },
+                            onClick = { exportFile.launch("everycue-backup-${LocalDate.now()}.everycue.zip") },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !busy,
                         ) {
                             Icon(Icons.Default.Backup, null); Text(stringResource(R.string.export_backup))
                         }
-                        OutlinedButton({ importFile.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth(), enabled = !busy) {
+                        OutlinedButton({ importFile.launch(arrayOf("application/zip", "application/json", "text/plain", "application/octet-stream")) }, Modifier.fillMaxWidth(), enabled = !busy) {
                             Icon(Icons.Default.Restore, null); Text(stringResource(R.string.restore_backup))
                         }
                         if (busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))

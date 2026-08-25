@@ -58,7 +58,13 @@ class SettingsViewModel(
             busy.value = true
             runCatching { block() }
                 .onSuccess { success?.let { effectChannel.send(SettingsEffect.ShowMessage(it)) } }
-                .onFailure { effectChannel.send(SettingsEffect.ShowMessage(R.string.generic_error)) }
+                .onFailure { error ->
+                    effectChannel.send(
+                        SettingsEffect.ShowMessage(
+                            (error as? BackupException)?.messageResource ?: R.string.generic_error,
+                        ),
+                    )
+                }
             busy.value = false
         }
     }

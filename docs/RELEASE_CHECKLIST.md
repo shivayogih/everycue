@@ -11,6 +11,7 @@
 - CI size ceiling: release APK and AAB must each remain at or below 12 MiB
 - Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
 - Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement
+- Backup archive tests: attachment byte round-trip, manifest compatibility, checksum/size validation, safe paths, duplicate rejection, and failed-restore cleanup
 - Room 1→2→3 migrations retain Track/Renew data, add an optional encrypted barcode, preserve outcome category evidence, and add local coaching preferences
 - Use Next tests: expired-item exclusion, deterministic ordering, stable ties, and structured reason codes
 - Waste Coach tests: evidence thresholds, 30/90/365-day summaries, rising trends, deterministic reasons, and hide/dismiss filtering
@@ -20,7 +21,9 @@
 - Test light/dark/system theme and dynamic colors
 - Deny and grant Android 13+ notification permission
 - Verify daily reminder tap opens the matching Track or Renew detail
-- Export a backup, modify data, restore, and verify all domains/history/settings
+- Export a backup containing renewal images/documents, modify data, restore, and verify all domains/history/settings plus the exact attachment bytes and share/view behavior
+- Attempt a corrupted/truncated archive restore and confirm current records and attachment files remain unchanged
+- Import a legacy JSON backup with and without current renewal attachments; confirm safe imports preserve attachments and conflicting imports fail with a clear message
 - Add and resize the widget; verify counts update after mutations
 - Exercise TalkBack labels, large font, landscape, and smallest supported screen
 - Test fresh install and upgrade from 0.1.0 without clearing app data

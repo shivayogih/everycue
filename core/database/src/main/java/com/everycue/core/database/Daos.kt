@@ -129,6 +129,9 @@ interface RenewalDao {
     @Upsert
     suspend fun upsertAttachment(attachment: RenewalAttachmentEntity)
 
+    @Upsert
+    suspend fun upsertAttachments(attachments: List<RenewalAttachmentEntity>)
+
     @Query("DELETE FROM renewal_attachments WHERE id = :attachmentId")
     suspend fun deleteAttachment(attachmentId: String)
 
@@ -144,4 +147,3 @@ interface RenewalDao {
     @Query("DELETE FROM renewal_attachments")
     suspend fun deleteAllAttachments()
 }
-

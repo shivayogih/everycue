@@ -45,6 +45,17 @@ data class AttachmentImportRequest(
     val mimeTypeHint: String? = null,
 )
 
+/** Trusted metadata plus bytes from a validated EveryCue backup archive. */
+data class AttachmentRestoreRequest(
+    val id: String,
+    val owner: AttachmentOwner,
+    val displayName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val createdAtMillis: Long,
+    val source: AttachmentSource,
+)
+
 enum class AttachmentError {
     SOURCE_UNAVAILABLE,
     EMPTY_FILE,
@@ -61,6 +72,7 @@ class AttachmentException(
 
 interface AttachmentStore {
     suspend fun import(request: AttachmentImportRequest): LocalAttachment
+    suspend fun restore(request: AttachmentRestoreRequest, input: InputStream): LocalAttachment
     suspend fun remove(attachment: LocalAttachment): Boolean
     suspend fun open(attachment: LocalAttachment): InputStream
     suspend fun cleanupTemporaryCaptures(olderThanMillis: Long): Int
@@ -69,4 +81,3 @@ interface AttachmentStore {
     fun createTemporaryCaptureFile(): File
     fun removeTemporaryCapture(file: File): Boolean
 }
-

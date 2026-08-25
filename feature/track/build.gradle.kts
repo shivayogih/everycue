@@ -25,6 +25,7 @@ dependencies {
     implementation(project(":core:security"))
     implementation(project(":core:extraction"))
     implementation(project(":core:attachments"))
+    implementation(project(":core:recommendation"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

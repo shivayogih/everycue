@@ -2,6 +2,9 @@ package com.everycue.feature.track
 
 import androidx.annotation.StringRes
 import com.everycue.core.extraction.SmartAddDraft
+import com.everycue.core.recommendation.UseNextInput
+import com.everycue.core.recommendation.UseNextRanker
+import com.everycue.core.recommendation.UseNextScore
 import java.time.LocalDate
 
 const val DEFAULT_TRACK_WARNING_DAYS = 7
@@ -120,10 +123,16 @@ data class TrackUiState(
             val today = LocalDate.now().toEpochDay()
             return items.count { it.expiryState(today) == ExpiryState.EXPIRED }
         }
-    val urgentItems: List<TrackItem>
+    val useNext: List<TrackUseNextEntry>
         get() {
             val today = LocalDate.now().toEpochDay()
-            return items.filter { it.expiryState(today) != ExpiryState.FRESH }.take(6)
+            val byId = items.associateBy(TrackItem::id)
+            return UseNextRanker.rank(
+                items = items.map { item ->
+                    UseNextInput(item.id, item.name, item.category.name, item.expiryEpochDay, item.reminderDays)
+                },
+                todayEpochDay = today,
+            ).mapNotNull { score -> byId[score.itemId]?.let { TrackUseNextEntry(it, score) } }
         }
     val consumedCount: Int get() = events.count { it.outcome == TrackOutcome.CONSUMED }
     val discardedCount: Int get() = events.count { it.outcome == TrackOutcome.DISCARDED }
@@ -134,3 +143,8 @@ data class TrackUiState(
             return if (decided == 0) 0 else (consumedCount * 100f / decided).toInt()
         }
 }
+
+data class TrackUseNextEntry(
+    val item: TrackItem,
+    val score: UseNextScore,
+)

@@ -66,7 +66,7 @@ fun HomeScreen(
     val unpacked = remember(pack) { pack.trips.sumOf { trip -> trip.items.count { !it.isPacked } } }
     val alerts = remember(track.items, pack.trips, renew.renewals) {
         buildList {
-            track.urgentItems.take(2).forEach { add(HomeAlert.Track(it)) }
+            track.useNext.take(2).forEach { add(HomeAlert.Track(it.item)) }
             renew.urgent.take(2).forEach { add(HomeAlert.Renew(it)) }
             pack.trips.firstOrNull { it.items.any { item -> !item.isPacked } }?.let { add(HomeAlert.Pack(it)) }
         }

@@ -12,6 +12,7 @@
 - Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
 - Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement
 - Room 1→2 migration retains Track/Renew data and adds an optional encrypted barcode field
+- Use Next tests: expired-item exclusion, deterministic ordering, stable ties, and structured reason codes
 
 ## Manual device gate
 
@@ -30,6 +31,7 @@
 - Inspect logs and crash breadcrumbs after OCR failure; confirm no OCR text, document reference, or sensitive number appears
 - Confirm discarded camera captures are removed and attachment removal leaves the original gallery/document file intact
 - Test Smart Add before and after Google Play services model download; verify cancellation and model failure return to manual entry
+- Verify Use Next never displays an expired item, explains every ranking, preserves category filters across rotation, and opens the correct item detail
 
 ## Play Console gate
 

@@ -23,7 +23,7 @@ Compose UI -> Intent -> ViewModel -> domain store interface -> repository -> enc
 - `:core:extraction` owns deterministic, framework-independent parsing contracts. Extracted values carry confidence, source context, and an explicit confirmation flag; extraction never persists a date or changes lifecycle state.
 - `:core:attachments` owns bounded copies into app-private storage. It supports the narrow Phase 1 image/PDF/text MIME set, sanitizes metadata, rejects empty or oversized inputs, prevents path traversal, and removes only app-owned copies.
 - `:core:vision` wraps permissionless Google Code Scanner and the Google Play services on-device Latin text recognizer. SDK objects stop at this boundary; feature ViewModels receive only barcode strings or OCR text and convert them to structured, reviewable drafts.
-- Deterministic Use Next, Waste Coach, and Trip Ready policies will sit behind `:core:recommendation` and expose reason codes with every result.
+- `:core:recommendation` owns deterministic recommendation policies. Use Next currently ranks active inventory from confirmed expiry dates, excludes expired items, and exposes a structured reason code for every result. Waste Coach and Trip Ready will extend the same framework-independent boundary.
 - Remote generative AI is outside Phase 1. Manual Track, Pack, and Renew flows remain the fallback when an on-device model or Google Play services module is unavailable.
 
 ## State rules

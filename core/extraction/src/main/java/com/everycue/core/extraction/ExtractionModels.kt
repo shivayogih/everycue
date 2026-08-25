@@ -35,6 +35,7 @@ enum class ExtractedDateKind {
     BEST_BEFORE,
     USE_BY,
     MANUFACTURED,
+    PURCHASED,
     START,
     DUE,
 }
@@ -87,6 +88,7 @@ data class SmartAddDraft(
     val productName: ExtractedField<String>? = null,
     val categoryName: ExtractedField<String>? = null,
     val quantity: ExtractedField<Double>? = null,
+    val unit: ExtractedField<String>? = null,
     val purchaseDate: ExtractedDate? = null,
     val expiryDate: ExtractedDate? = null,
     val storageLocation: ExtractedField<String>? = null,
@@ -94,3 +96,4 @@ data class SmartAddDraft(
     val barcode: ExtractedField<String>? = null,
     val possibleDuplicateIds: List<String> = emptyList(),
 )
+

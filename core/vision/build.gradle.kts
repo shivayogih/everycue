@@ -17,4 +17,6 @@ java { toolchain.languageVersion.set(JavaLanguageVersion.of(21)) }
 dependencies {
     implementation(libs.google.play.services.mlkit.text.recognition)
     implementation(libs.google.play.services.code.scanner)
+    testImplementation(libs.junit)
 }
+

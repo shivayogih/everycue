@@ -113,9 +113,13 @@
     <string name="smart_add_source_image">Image text recognized on this device</string>
     <string name="smart_add_source_other">Suggested draft</string>
     <string name="possible_duplicate">Possible duplicate: an active item already uses this barcode.</string>
+    <string name="scanned_barcode_value">Scanned code: %1$s</string>
+    <string name="smart_add_review_help">Scanning creates suggestions only. Compare the product name, quantity, unit and dates with the physical label before saving.</string>
+    <string name="confirm_smart_add_review">I reviewed the suggestions</string>
+    <string name="smart_add_review_required">Review and confirm the scanned suggestions before saving.</string>
     <string name="clear_smart_add">Clear suggestions</string>
-    <string name="confirm_extracted_expiry">Confirm the extracted expiry date</string>
-    <string name="confirm_extracted_expiry_help">EveryCue will not save an OCR-derived date until you explicitly confirm or correct it.</string>
+    <string name="confirm_extracted_expiry">Confirm the expiry date</string>
+    <string name="confirm_extracted_expiry_help">EveryCue will not save after a scan until you confirm or correct the expiry date. Barcodes generally do not contain expiry information.</string>
     <string name="confirm_date">Confirm date</string>
     <string name="smart_add_model_unavailable">On-device scanning is not ready. Try again after the model downloads, or enter the item manually.</string>
     <string name="smart_add_image_unreadable">That image could not be read. Choose another image or enter the item manually.</string>
@@ -145,3 +149,4 @@
     <string name="dismissed_observation">Dismissed observation</string>
     <string name="restore">Restore</string>
 </resources>
+

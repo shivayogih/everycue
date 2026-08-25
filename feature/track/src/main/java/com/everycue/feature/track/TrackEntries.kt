@@ -26,6 +26,7 @@ fun EntryProviderScope<NavKey>.trackEntryBuilder(
             onOpenHistory = { navigator.navigate(TrackHistoryRoute) },
             onOpenInsights = { navigator.navigate(TrackInsightsRoute) },
             onOpenUseNext = { navigator.navigate(TrackUseNextRoute) },
+            onOpenWasteCoach = { navigator.navigate(TrackWasteCoachRoute) },
         )
     }
     entry<TrackInventoryRoute> {
@@ -79,6 +80,13 @@ fun EntryProviderScope<NavKey>.trackEntryBuilder(
             entries = state.value.useNext,
             onBack = { navigator.goBack() },
             onOpenItem = { navigator.navigate(TrackDetailRoute(it)) },
+        )
+    }
+    entry<TrackWasteCoachRoute> {
+        TrackWasteCoachScreen(
+            state = state.value,
+            onBack = { navigator.goBack() },
+            onIntent = viewModel::onIntent,
         )
     }
     entry<TrackOutcomeDialogRoute>(

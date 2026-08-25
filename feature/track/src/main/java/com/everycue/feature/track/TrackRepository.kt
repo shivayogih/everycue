@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.everycue.core.database.EveryCueDatabase
 import com.everycue.core.database.TrackEventEntity
 import com.everycue.core.database.TrackItemEntity
+import com.everycue.core.database.TrackCoachPreferenceEntity
 import com.everycue.core.security.TextCipher
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +18,8 @@ class TrackRepository(
 
     override val items: Flow<List<TrackItem>> = dao.observeActiveItems().map { entities -> entities.map { it.toModel(cipher) } }
     override val events: Flow<List<TrackEvent>> = dao.observeEvents().map { entities -> entities.map { it.toModel(cipher) } }
+    override val coachPreferences: Flow<List<TrackCoachPreference>> =
+        dao.observeCoachPreferences().map { entities -> entities.map(TrackCoachPreferenceEntity::toModel) }
 
     override suspend fun save(draft: TrackDraft, itemId: String?): String {
         draft.validate()
@@ -65,6 +68,7 @@ class TrackRepository(
                     unit = item.unit,
                     timestampMillis = now,
                     notes = cipher.encrypt(note.trim()),
+                    categorySnapshot = item.category,
                 ),
             )
         }
@@ -74,10 +78,19 @@ class TrackRepository(
         dao.getItem(itemId)?.let { dao.deleteItem(it) }
     }
 
+    override suspend fun saveCoachPreference(preference: TrackCoachPreference) {
+        dao.upsertCoachPreference(preference.toEntity())
+    }
+
+    override suspend fun removeCoachPreference(key: String) {
+        dao.deleteCoachPreference(key)
+    }
+
     override suspend fun clearAll() {
         database.withTransaction {
             dao.deleteAllEvents()
             dao.deleteAllItems()
+            dao.deleteAllCoachPreferences()
         }
     }
 }
@@ -107,6 +120,21 @@ private fun TrackEventEntity.toModel(cipher: TextCipher) = TrackEvent(
     unit = cipher.decrypt(unit),
     timestampMillis = timestampMillis,
     notes = cipher.decrypt(notes),
+    category = enumValueOrDefault(categorySnapshot, TrackCategory.OTHER),
+)
+
+private fun TrackCoachPreferenceEntity.toModel() = TrackCoachPreference(
+    key = key,
+    type = enumValueOrDefault(type, TrackCoachPreferenceType.DISMISSED_INSIGHT),
+    value = value,
+    createdAtMillis = createdAtMillis,
+)
+
+private fun TrackCoachPreference.toEntity() = TrackCoachPreferenceEntity(
+    key = key,
+    type = type.name,
+    value = value,
+    createdAtMillis = createdAtMillis,
 )
 
 private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =

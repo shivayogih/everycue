@@ -5,7 +5,14 @@ import com.everycue.core.extraction.SmartAddDraft
 import com.everycue.core.recommendation.UseNextInput
 import com.everycue.core.recommendation.UseNextRanker
 import com.everycue.core.recommendation.UseNextScore
+import com.everycue.core.recommendation.WasteCoach
+import com.everycue.core.recommendation.WasteCoachExclusions
+import com.everycue.core.recommendation.WasteCoachResult
+import com.everycue.core.recommendation.WasteEventInput
+import com.everycue.core.recommendation.WasteOutcome
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 const val DEFAULT_TRACK_WARNING_DAYS = 7
 
@@ -58,6 +65,16 @@ data class TrackEvent(
     val unit: String,
     val timestampMillis: Long,
     val notes: String,
+    val category: TrackCategory = TrackCategory.OTHER,
+)
+
+enum class TrackCoachPreferenceType { HIDDEN_SUBJECT, HIDDEN_CATEGORY, DISMISSED_INSIGHT }
+
+data class TrackCoachPreference(
+    val key: String,
+    val type: TrackCoachPreferenceType,
+    val value: String,
+    val createdAtMillis: Long,
 )
 
 data class TrackDraft(
@@ -107,6 +124,7 @@ data class TrackUiState(
     val events: List<TrackEvent> = emptyList(),
     val isBusy: Boolean = false,
     val smartAddDraft: SmartAddDraft? = null,
+    val coachPreferences: List<TrackCoachPreference> = emptyList(),
 ) {
     val freshCount: Int
         get() {
@@ -123,17 +141,47 @@ data class TrackUiState(
             val today = LocalDate.now().toEpochDay()
             return items.count { it.expiryState(today) == ExpiryState.EXPIRED }
         }
-    val useNext: List<TrackUseNextEntry>
-        get() {
-            val today = LocalDate.now().toEpochDay()
-            val byId = items.associateBy(TrackItem::id)
-            return UseNextRanker.rank(
-                items = items.map { item ->
-                    UseNextInput(item.id, item.name, item.category.name, item.expiryEpochDay, item.reminderDays)
+    val useNext: List<TrackUseNextEntry> by lazy(LazyThreadSafetyMode.NONE) {
+        val today = LocalDate.now().toEpochDay()
+        val byId = items.associateBy(TrackItem::id)
+        UseNextRanker.rank(
+            items = items.map { item ->
+                UseNextInput(item.id, item.name, item.category.name, item.expiryEpochDay, item.reminderDays)
+            },
+            todayEpochDay = today,
+        ).mapNotNull { score -> byId[score.itemId]?.let { TrackUseNextEntry(it, score) } }
+    }
+    val wasteCoach: WasteCoachResult by lazy(LazyThreadSafetyMode.NONE) {
+            val hiddenSubjects = coachPreferences
+                .filter { it.type == TrackCoachPreferenceType.HIDDEN_SUBJECT }
+                .mapTo(mutableSetOf(), TrackCoachPreference::value)
+            val hiddenCategories = coachPreferences
+                .filter { it.type == TrackCoachPreferenceType.HIDDEN_CATEGORY }
+                .mapTo(mutableSetOf(), TrackCoachPreference::value)
+            val dismissed = coachPreferences
+                .filter { it.type == TrackCoachPreferenceType.DISMISSED_INSIGHT }
+                .mapTo(mutableSetOf(), TrackCoachPreference::value)
+            WasteCoach.analyze(
+                events = events.map { event ->
+                    WasteEventInput(
+                        subjectId = event.itemId,
+                        subjectLabel = event.itemName,
+                        category = event.category.name,
+                        outcome = when (event.outcome) {
+                            TrackOutcome.CONSUMED -> WasteOutcome.CONSUMED
+                            TrackOutcome.DISCARDED -> WasteOutcome.DISCARDED
+                            TrackOutcome.DONATED -> WasteOutcome.DONATED
+                        },
+                        occurredEpochDay = Instant.ofEpochMilli(event.timestampMillis)
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDate()
+                            .toEpochDay(),
+                    )
                 },
-                todayEpochDay = today,
-            ).mapNotNull { score -> byId[score.itemId]?.let { TrackUseNextEntry(it, score) } }
-        }
+                todayEpochDay = LocalDate.now().toEpochDay(),
+                exclusions = WasteCoachExclusions(hiddenSubjects, hiddenCategories, dismissed),
+            )
+    }
     val consumedCount: Int get() = events.count { it.outcome == TrackOutcome.CONSUMED }
     val discardedCount: Int get() = events.count { it.outcome == TrackOutcome.DISCARDED }
     val donatedCount: Int get() = events.count { it.outcome == TrackOutcome.DONATED }

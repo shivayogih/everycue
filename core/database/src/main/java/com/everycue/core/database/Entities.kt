@@ -42,6 +42,15 @@ data class TrackEventEntity(
     val unit: String,
     val timestampMillis: Long,
     val notes: String,
+    val categorySnapshot: String = "OTHER",
+)
+
+@Entity(tableName = "track_coach_preferences", indices = [Index("type")])
+data class TrackCoachPreferenceEntity(
+    @PrimaryKey val key: String,
+    val type: String,
+    val value: String,
+    val createdAtMillis: Long,
 )
 
 @Entity(

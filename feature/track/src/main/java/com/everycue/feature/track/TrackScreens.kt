@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.TipsAndUpdates
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -76,6 +77,9 @@ import com.everycue.core.designsystem.rememberKeyboardDismissAction
 import com.everycue.core.extraction.ExtractionSourceType
 import com.everycue.core.extraction.SmartAddDraft
 import com.everycue.core.recommendation.UseNextReasonCode
+import com.everycue.core.recommendation.WastePatternType
+import com.everycue.core.recommendation.WasteSuggestionCode
+import com.everycue.core.recommendation.WasteWindow
 import java.time.LocalDate
 
 @Composable
@@ -121,6 +125,7 @@ fun TrackHomeScreen(
     onOpenHistory: () -> Unit,
     onOpenInsights: () -> Unit,
     onOpenUseNext: () -> Unit,
+    onOpenWasteCoach: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -190,6 +195,145 @@ fun TrackHomeScreen(
             } else {
                 items(state.useNext.take(6), key = { it.item.id }) { entry ->
                     TrackItemCard(item = entry.item, onClick = { onOpenItem(entry.item.id) })
+                }
+            }
+            item {
+                QuickAction(
+                    label = stringResource(R.string.waste_coach),
+                    icon = Icons.Default.TipsAndUpdates,
+                    onClick = onOpenWasteCoach,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TrackWasteCoachScreen(
+    state: TrackUiState,
+    onBack: () -> Unit,
+    onIntent: (TrackIntent) -> Unit,
+) {
+    val result = state.wasteCoach
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.waste_coach)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Text(
+                    stringResource(R.string.waste_coach_explanation),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            items(result.summaries, key = { it.window.name }) { summary ->
+                val label = when (summary.window) {
+                    WasteWindow.THIRTY_DAYS -> stringResource(R.string.last_30_days)
+                    WasteWindow.THREE_MONTHS -> stringResource(R.string.last_3_months)
+                    WasteWindow.TWELVE_MONTHS -> stringResource(R.string.last_12_months)
+                }
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(label, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.discard_count, summary.discardedCount))
+                    }
+                }
+            }
+            item { SectionHeader(stringResource(R.string.coaching_observations)) }
+            if (result.insights.isEmpty()) {
+                item {
+                    EmptyState(
+                        stringResource(R.string.no_coaching_patterns),
+                        stringResource(R.string.no_coaching_patterns_help),
+                    )
+                }
+            } else {
+                items(result.insights, key = { it.key }) { insight ->
+                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val title = when (insight.pattern.type) {
+                                WastePatternType.REPEATED_PRODUCT_DISCARD ->
+                                    stringResource(R.string.repeated_product_pattern, insight.pattern.subjectLabel.orEmpty())
+                                WastePatternType.REPEATED_CATEGORY_DISCARD ->
+                                    stringResource(R.string.repeated_category_pattern, insight.pattern.category.orEmpty())
+                                WastePatternType.DISCARD_RATE_INCREASED ->
+                                    stringResource(R.string.discard_trend_pattern)
+                            }
+                            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                stringResource(
+                                    R.string.coach_evidence,
+                                    insight.pattern.evidence.occurrences,
+                                    insight.pattern.evidence.decisions,
+                                    insight.pattern.evidence.discardRatePercent,
+                                ),
+                            )
+                            Text(
+                                stringResource(
+                                    when (insight.suggestionCode) {
+                                        WasteSuggestionCode.TRY_A_SMALLER_AMOUNT -> R.string.suggestion_smaller_amount
+                                        WasteSuggestionCode.PLAN_AN_EARLIER_USE -> R.string.suggestion_earlier_use
+                                        WasteSuggestionCode.REVIEW_CATEGORY_BUYING -> R.string.suggestion_review_category
+                                    },
+                                ),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(onClick = {
+                                    onIntent(TrackIntent.DismissCoachInsight(insight.key))
+                                }) { Text(stringResource(R.string.dismiss)) }
+                                insight.pattern.subjectId?.let { subjectId ->
+                                    TextButton(onClick = {
+                                        onIntent(TrackIntent.HideCoachSubject(subjectId))
+                                    }) { Text(stringResource(R.string.mute_product)) }
+                                }
+                                insight.pattern.category?.let { category ->
+                                    TextButton(onClick = {
+                                        onIntent(TrackIntent.HideCoachCategory(category))
+                                    }) { Text(stringResource(R.string.mute_category)) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (state.coachPreferences.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.hidden_coaching)) }
+                items(state.coachPreferences, key = TrackCoachPreference::key) { preference ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            when (preference.type) {
+                                TrackCoachPreferenceType.HIDDEN_SUBJECT -> stringResource(R.string.hidden_product)
+                                TrackCoachPreferenceType.HIDDEN_CATEGORY -> stringResource(R.string.hidden_category, preference.value)
+                                TrackCoachPreferenceType.DISMISSED_INSIGHT -> stringResource(R.string.dismissed_observation)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = {
+                            onIntent(TrackIntent.RestoreCoachPreference(preference.key))
+                        }) { Text(stringResource(R.string.restore)) }
+                    }
                 }
             }
         }

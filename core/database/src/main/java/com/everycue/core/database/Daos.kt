@@ -48,11 +48,29 @@ interface TrackDao {
     @Query("SELECT * FROM track_events ORDER BY timestampMillis DESC")
     fun observeEvents(): Flow<List<TrackEventEntity>>
 
+    @Query("SELECT * FROM track_coach_preferences ORDER BY createdAtMillis ASC")
+    fun observeCoachPreferences(): Flow<List<TrackCoachPreferenceEntity>>
+
+    @Query("SELECT * FROM track_coach_preferences ORDER BY createdAtMillis ASC")
+    suspend fun getCoachPreferences(): List<TrackCoachPreferenceEntity>
+
+    @Upsert
+    suspend fun upsertCoachPreference(preference: TrackCoachPreferenceEntity)
+
+    @Upsert
+    suspend fun upsertCoachPreferences(preferences: List<TrackCoachPreferenceEntity>)
+
+    @Query("DELETE FROM track_coach_preferences WHERE key = :key")
+    suspend fun deleteCoachPreference(key: String)
+
     @Query("DELETE FROM track_events")
     suspend fun deleteAllEvents()
 
     @Query("DELETE FROM track_items")
     suspend fun deleteAllItems()
+
+    @Query("DELETE FROM track_coach_preferences")
+    suspend fun deleteAllCoachPreferences()
 }
 
 @Dao

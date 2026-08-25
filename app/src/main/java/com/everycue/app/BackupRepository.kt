@@ -8,6 +8,7 @@ import com.everycue.core.database.RenewalEntity
 import com.everycue.core.database.RenewalEventEntity
 import com.everycue.core.database.TrackEventEntity
 import com.everycue.core.database.TrackItemEntity
+import com.everycue.core.database.TrackCoachPreferenceEntity
 import com.everycue.core.security.TextCipher
 import com.everycue.feature.pack.PackData
 import com.everycue.feature.pack.PackStore
@@ -15,6 +16,7 @@ import com.everycue.feature.renew.RenewalDraft
 import com.everycue.feature.renew.RenewalType
 import com.everycue.feature.track.TrackCategory
 import com.everycue.feature.track.TrackDraft
+import com.everycue.feature.track.TrackCoachPreferenceType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -31,6 +33,7 @@ data class EveryCueBackup(
     val pack: PackData,
     val settings: AppSettings,
     val profile: LocalProfile? = null,
+    val trackCoachPreferences: List<TrackCoachPreferenceBackup> = emptyList(),
 )
 
 @Serializable
@@ -45,6 +48,15 @@ data class TrackItemBackup(
 data class TrackEventBackup(
     val id: String, val itemId: String, val itemNameSnapshot: String, val outcome: String,
     val quantity: Double, val unit: String, val timestampMillis: Long, val notes: String,
+    val categorySnapshot: String = TrackCategory.OTHER.name,
+)
+
+@Serializable
+data class TrackCoachPreferenceBackup(
+    val key: String,
+    val type: String,
+    val value: String,
+    val createdAtMillis: Long,
 )
 
 @Serializable
@@ -90,6 +102,7 @@ class BackupRepository(
             pack = packRepository.snapshot(),
             settings = settingsRepository.snapshot(),
             profile = userProfileStore.snapshot(),
+            trackCoachPreferences = trackDao.getCoachPreferences().map(TrackCoachPreferenceEntity::toBackup),
         )
         resolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(json.encodeToString(payload)) }
             ?: error("Could not open the selected backup file.")
@@ -111,10 +124,12 @@ class BackupRepository(
             val renewalDao = database.renewalDao()
             trackDao.deleteAllEvents()
             trackDao.deleteAllItems()
+            trackDao.deleteAllCoachPreferences()
             renewalDao.deleteAllEvents()
             renewalDao.deleteAllRenewals()
             trackDao.upsertItems(payload.trackItems.map { it.toEntity(cipher) })
             trackDao.upsertEvents(payload.trackEvents.map { it.toEntity(cipher) })
+            trackDao.upsertCoachPreferences(payload.trackCoachPreferences.map(TrackCoachPreferenceBackup::toEntity))
             renewalDao.upsertRenewals(payload.renewals.map { it.toEntity(cipher) })
             renewalDao.upsertEvents(payload.renewalEvents.map { it.toEntity(cipher) })
         }
@@ -125,7 +140,14 @@ class BackupRepository(
 }
 
 private fun EveryCueBackup.validateUserData() {
-    require(trackItems.size <= 50_000 && renewals.size <= 50_000 && pack.trips.size <= 10_000) {
+    require(
+        trackItems.size <= 50_000 &&
+            renewals.size <= 50_000 &&
+            pack.trips.size <= 10_000 &&
+            trackEvents.size <= 100_000 &&
+            renewalEvents.size <= 100_000 &&
+            trackCoachPreferences.size <= 100_000,
+    ) {
         "Backup contains more records than EveryCue supports."
     }
     trackItems.forEach { item ->
@@ -141,6 +163,17 @@ private fun EveryCueBackup.validateUserData() {
             reminderDays = item.reminderDays,
             barcode = item.barcode,
         ).validate()
+    }
+    require(trackCoachPreferences.distinctBy { it.key }.size == trackCoachPreferences.size) {
+        "Backup contains duplicate coaching preferences."
+    }
+    trackEvents.forEach { event ->
+        require(event.id.isNotBlank() && event.itemId.isNotBlank() && event.itemNameSnapshot.length in 1..80)
+        require(event.categorySnapshot in TrackCategory.entries.map(TrackCategory::name))
+    }
+    trackCoachPreferences.forEach { preference ->
+        require(preference.key.length in 1..200 && preference.value.length in 1..200)
+        require(preference.type in TrackCoachPreferenceType.entries.map(TrackCoachPreferenceType::name))
     }
     renewals.forEach { item ->
         RenewalDraft(
@@ -159,8 +192,10 @@ private fun EveryCueBackup.validateUserData() {
 
 private fun TrackItemEntity.toBackup(cipher: TextCipher) = TrackItemBackup(id, cipher.decrypt(name), category, quantity, cipher.decrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.decrypt(storageLocation), cipher.decrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis, barcode?.let(cipher::decrypt))
 private fun TrackItemBackup.toEntity(cipher: TextCipher) = TrackItemEntity(id, cipher.encrypt(name), category, quantity, cipher.encrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.encrypt(storageLocation), cipher.encrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis, barcode?.let(cipher::encrypt))
-private fun TrackEventEntity.toBackup(cipher: TextCipher) = TrackEventBackup(id, itemId, cipher.decrypt(itemNameSnapshot), outcome, quantity, cipher.decrypt(unit), timestampMillis, cipher.decrypt(notes))
-private fun TrackEventBackup.toEntity(cipher: TextCipher) = TrackEventEntity(id, itemId, cipher.encrypt(itemNameSnapshot), outcome, quantity, cipher.encrypt(unit), timestampMillis, cipher.encrypt(notes))
+private fun TrackEventEntity.toBackup(cipher: TextCipher) = TrackEventBackup(id, itemId, cipher.decrypt(itemNameSnapshot), outcome, quantity, cipher.decrypt(unit), timestampMillis, cipher.decrypt(notes), categorySnapshot)
+private fun TrackEventBackup.toEntity(cipher: TextCipher) = TrackEventEntity(id, itemId, cipher.encrypt(itemNameSnapshot), outcome, quantity, cipher.encrypt(unit), timestampMillis, cipher.encrypt(notes), categorySnapshot)
+private fun TrackCoachPreferenceEntity.toBackup() = TrackCoachPreferenceBackup(key, type, value, createdAtMillis)
+private fun TrackCoachPreferenceBackup.toEntity() = TrackCoachPreferenceEntity(key, type, value, createdAtMillis)
 private fun RenewalEntity.toBackup(cipher: TextCipher) = RenewalBackup(id, cipher.decrypt(title), type, dueEpochDay, reminderDays, cipher.decrypt(provider), cipher.decrypt(referenceNumber), cipher.decrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
 private fun RenewalBackup.toEntity(cipher: TextCipher) = RenewalEntity(id, cipher.encrypt(title), type, dueEpochDay, reminderDays, cipher.encrypt(provider), cipher.encrypt(referenceNumber), cipher.encrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
 private fun RenewalEventEntity.toBackup(cipher: TextCipher) = RenewalEventBackup(id, renewalId, cipher.decrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.decrypt(notes))

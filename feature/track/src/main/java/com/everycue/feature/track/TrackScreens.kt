@@ -75,6 +75,7 @@ import com.everycue.core.designsystem.DismissKeyboardOnScroll
 import com.everycue.core.designsystem.rememberKeyboardDismissAction
 import com.everycue.core.extraction.ExtractionSourceType
 import com.everycue.core.extraction.SmartAddDraft
+import com.everycue.core.recommendation.UseNextReasonCode
 import java.time.LocalDate
 
 @Composable
@@ -119,6 +120,7 @@ fun TrackHomeScreen(
     onOpenItem: (String) -> Unit,
     onOpenHistory: () -> Unit,
     onOpenInsights: () -> Unit,
+    onOpenUseNext: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -164,8 +166,8 @@ fun TrackHomeScreen(
             }
             item {
                 SectionHeader(
-                    title = stringResource(R.string.use_ahead),
-                    action = { TextButton(onClick = onOpenInventory) { Text(stringResource(R.string.view_all)) } },
+                    title = stringResource(R.string.use_next),
+                    action = { TextButton(onClick = onOpenUseNext) { Text(stringResource(R.string.view_all)) } },
                 )
             }
             if (state.items.isEmpty()) {
@@ -176,18 +178,85 @@ fun TrackHomeScreen(
                         action = { Button(onClick = onAdd) { Text(stringResource(R.string.add_first_item)) } },
                     )
                 }
-            } else if (state.urgentItems.isEmpty()) {
+            } else if (state.useNext.isEmpty()) {
                 item {
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(stringResource(R.string.everything_fresh), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.nothing_in_warning_window), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.nothing_safe_to_prioritize), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.nothing_safe_to_prioritize_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             } else {
-                items(state.urgentItems, key = TrackItem::id) { item ->
-                    TrackItemCard(item = item, onClick = { onOpenItem(item.id) })
+                items(state.useNext.take(6), key = { it.item.id }) { entry ->
+                    TrackItemCard(item = entry.item, onClick = { onOpenItem(entry.item.id) })
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TrackUseNextScreen(
+    entries: List<TrackUseNextEntry>,
+    onBack: () -> Unit,
+    onOpenItem: (String) -> Unit,
+) {
+    var categoryName by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedCategory = categoryName?.let { runCatching { TrackCategory.valueOf(it) }.getOrNull() }
+    val visible = remember(entries, selectedCategory) {
+        if (selectedCategory == null) entries else entries.filter { it.item.category == selectedCategory }
+    }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.use_next)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                Text(stringResource(R.string.use_next_explanation), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                LazyCategoryChips(
+                    selected = selectedCategory,
+                    onSelected = { categoryName = if (selectedCategory == it) null else it.name },
+                )
+            }
+            if (visible.isEmpty()) {
+                item { EmptyState(stringResource(R.string.no_use_next_items), stringResource(R.string.no_use_next_items_help)) }
+            } else {
+                items(visible, key = { it.item.id }) { entry ->
+                    ElevatedCard(onClick = { onOpenItem(entry.item.id) }, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(entry.item.category.emoji, style = MaterialTheme.typography.headlineMedium)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(entry.item.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    stringResource(
+                                        when (entry.score.reasonCodes.first()) {
+                                            UseNextReasonCode.EXPIRES_TODAY -> R.string.reason_expires_today
+                                            UseNextReasonCode.EXPIRING_SOON -> R.string.reason_expiring_soon
+                                            UseNextReasonCode.EXPIRY_UPCOMING -> R.string.reason_expiry_upcoming
+                                        },
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(entry.item.expiryMessageResource(), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
                 }
             }
         }

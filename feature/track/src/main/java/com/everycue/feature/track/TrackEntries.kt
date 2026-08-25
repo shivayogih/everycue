@@ -25,6 +25,7 @@ fun EntryProviderScope<NavKey>.trackEntryBuilder(
             onOpenItem = { navigator.navigate(TrackDetailRoute(it)) },
             onOpenHistory = { navigator.navigate(TrackHistoryRoute) },
             onOpenInsights = { navigator.navigate(TrackInsightsRoute) },
+            onOpenUseNext = { navigator.navigate(TrackUseNextRoute) },
         )
     }
     entry<TrackInventoryRoute> {
@@ -72,6 +73,13 @@ fun EntryProviderScope<NavKey>.trackEntryBuilder(
     }
     entry<TrackInsightsRoute> {
         TrackInsightsScreen(state = state.value, onBack = { navigator.goBack() })
+    }
+    entry<TrackUseNextRoute> {
+        TrackUseNextScreen(
+            entries = state.value.useNext,
+            onBack = { navigator.goBack() },
+            onOpenItem = { navigator.navigate(TrackDetailRoute(it)) },
+        )
     }
     entry<TrackOutcomeDialogRoute>(
         metadata = DialogSceneStrategy.dialog(DialogProperties()),

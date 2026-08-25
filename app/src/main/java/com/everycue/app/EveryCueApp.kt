@@ -58,6 +58,8 @@ import com.everycue.feature.pack.PackTripsRoute
 import com.everycue.feature.pack.PackTripDetailRoute
 import com.everycue.feature.pack.PackEffect
 import com.everycue.feature.pack.PackViewModel
+import com.everycue.feature.pack.TripReadyRenewalRecord
+import com.everycue.feature.pack.TripReadyTrackRecord
 import com.everycue.feature.pack.packEntryBuilder
 import com.everycue.feature.renew.RenewHomeRoute
 import com.everycue.feature.renew.RenewDetailRoute
@@ -110,6 +112,12 @@ fun EveryCueApp(
     val trackState = trackViewModel.state.collectAsStateWithLifecycle()
     val packState = packViewModel.state.collectAsStateWithLifecycle()
     val renewState = renewViewModel.state.collectAsStateWithLifecycle()
+    val tripReadyTrackRecords = remember(trackState.value.items) {
+        trackState.value.items.map { TripReadyTrackRecord(it.id, it.name, it.expiryEpochDay) }
+    }
+    val tripReadyRenewalRecords = remember(renewState.value.renewals) {
+        renewState.value.renewals.map { TripReadyRenewalRecord(it.id, it.title, it.dueEpochDay) }
+    }
     val settingsState = settingsViewModel.state.collectAsStateWithLifecycle()
     val profileState = profileViewModel.state.collectAsStateWithLifecycle()
 
@@ -408,7 +416,15 @@ fun EveryCueApp(
             },
             onImportImage = { importLabelImage.launch(arrayOf("image/*")) },
         )
-        packEntryBuilder(packState, packViewModel, navigator)
+        packEntryBuilder(
+            state = packState,
+            viewModel = packViewModel,
+            navigator = navigator,
+            trackRecords = tripReadyTrackRecords,
+            renewalRecords = tripReadyRenewalRecords,
+            onOpenTrack = { navigator.openInTopLevel(TrackHomeRoute, TrackDetailRoute(it)) },
+            onOpenRenewal = { navigator.openInTopLevel(RenewHomeRoute, RenewDetailRoute(it)) },
+        )
         renewEntryBuilder(
             state = renewState,
             viewModel = renewViewModel,

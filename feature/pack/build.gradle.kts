@@ -21,6 +21,7 @@ java { toolchain.languageVersion.set(JavaLanguageVersion.of(21)) }
 dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:recommendation"))
     implementation(project(":core:security"))
 
     implementation(libs.androidx.core.ktx)

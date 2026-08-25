@@ -16,6 +16,8 @@
 - Room 1→2→3 migrations retain Track/Renew data, add an optional encrypted barcode, preserve outcome category evidence, and add local coaching preferences
 - Use Next tests: expired-item exclusion, deterministic ordering, stable ties, and structured reason codes
 - Waste Coach tests: evidence thresholds, 30/90/365-day summaries, rising trends, deterministic reasons, and hide/dismiss filtering
+- Trip Ready tests: missing dates, packing state, before/during/after trip boundaries, stable ordering, invalid counts, and 500 linked records
+- Trip Ready links: exact Track/Renew identity, duplicate rejection, missing-trip rejection, and immediate optimistic link/unlink state
 
 ## Manual device gate
 
@@ -39,6 +41,9 @@
 - Test Renewal Capture with camera and imported images for documents, insurance, warranties, memberships, subscriptions, and certificates; verify fields and dates remain editable, review is required, manual fallback works, and rotation does not reapply OCR over user edits
 - Verify Use Next never displays an expired item, explains every ranking, preserves category filters across rotation, and opens the correct item detail
 - Verify Waste Coach stays silent below thresholds, never estimates money without price data, updates after outcomes, and persists dismiss/mute/restore controls after restart
+- Verify Trip Ready groups Critical / Needs attention / Ready, uses only explicitly linked records, recalculates after trip/packing/date changes, and opens the correct Track or Renew detail
+- Link and unlink Trip Ready records, rotate and restart the app, and confirm selection state persists without stale or broken findings after source deletion
+- Exercise Trip Ready search, linking, scrolling, and recalculation with more than 100 available records
 
 ## Play Console gate
 

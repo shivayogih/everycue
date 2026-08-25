@@ -12,6 +12,7 @@ interface PackStore {
     suspend fun deleteItem(tripId: Long, itemId: Long)
     suspend fun moveItem(tripId: Long, itemId: Long, offset: Int)
     suspend fun unpackAll(tripId: Long)
+    suspend fun setTripLink(tripId: Long, entityType: TripLinkEntityType, entityId: String, linked: Boolean)
     suspend fun deleteTrip(tripId: Long)
     suspend fun addDemoTrip(): Long
     suspend fun resetAll()

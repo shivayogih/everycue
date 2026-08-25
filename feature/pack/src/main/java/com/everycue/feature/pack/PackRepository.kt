@@ -145,8 +145,30 @@ class PackRepository(context: Context, private val cipher: TextCipher) : PackSto
         }
     }
 
-    override suspend fun deleteTrip(tripId: Long) = mutateTrips { trips ->
-        trips.filterNot { it.id == tripId }
+    override suspend fun setTripLink(
+        tripId: Long,
+        entityType: TripLinkEntityType,
+        entityId: String,
+        linked: Boolean,
+    ) = mutate { current ->
+        require(current.trips.any { it.id == tripId }) { "Trip does not exist." }
+        require(entityId.isNotBlank()) { "Linked record ID cannot be blank." }
+        val key = TripLinkKey(tripId, entityType, entityId)
+        val withoutTarget = current.tripLinks.filterNot { it.key() == key }
+        current.copy(
+            tripLinks = if (linked) {
+                (withoutTarget + TripLink(tripId, entityType, entityId)).sortedWith(TripLink.ordering)
+            } else {
+                withoutTarget
+            },
+        )
+    }
+
+    override suspend fun deleteTrip(tripId: Long) = mutate { current ->
+        current.copy(
+            trips = current.trips.filterNot { it.id == tripId },
+            tripLinks = current.tripLinks.filterNot { it.tripId == tripId },
+        )
     }
 
     override suspend fun addDemoTrip(): Long {

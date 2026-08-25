@@ -11,6 +11,10 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
     state: State<PackUiState>,
     viewModel: PackViewModel,
     navigator: Navigator,
+    trackRecords: List<TripReadyTrackRecord>,
+    renewalRecords: List<TripReadyRenewalRecord>,
+    onOpenTrack: (String) -> Unit,
+    onOpenRenewal: (String) -> Unit,
 ) {
     entry<PackTripsRoute> {
         TripsScreen(
@@ -46,6 +50,7 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
             onAddItem = { name, category, quantity ->
                 viewModel.onIntent(PackIntent.AddItem(route.tripId, name, category, quantity))
             },
+            onTripReady = { navigator.navigate(TripReadyRoute(route.tripId)) },
             onEditTrip = { navigator.navigate(EditPackTripRoute(route.tripId)) },
             onTogglePacked = { item, packed -> viewModel.onIntent(PackIntent.SetPacked(route.tripId, item.id, packed)) },
             onDeleteItem = { item -> viewModel.onIntent(PackIntent.DeleteItem(route.tripId, item.id)) },
@@ -59,6 +64,25 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
                     ),
                 )
             },
+        )
+    }
+    entry<TripReadyRoute> { route ->
+        val data = state.value.data
+        TripReadyScreen(
+            trip = data.trips.firstOrNull { it.id == route.tripId },
+            links = data.tripLinks,
+            trackRecords = trackRecords,
+            renewalRecords = renewalRecords,
+            onBack = { navigator.goBack() },
+            onEditTrip = { navigator.navigate(EditPackTripRoute(route.tripId)) },
+            onToggleTrack = { id, linked ->
+                viewModel.onIntent(PackIntent.SetTripLink(route.tripId, TripLinkEntityType.TRACK, id, linked))
+            },
+            onToggleRenewal = { id, linked ->
+                viewModel.onIntent(PackIntent.SetTripLink(route.tripId, TripLinkEntityType.RENEW, id, linked))
+            },
+            onOpenTrack = onOpenTrack,
+            onOpenRenewal = onOpenRenewal,
         )
     }
     entry<PackTemplatesRoute> {

@@ -18,6 +18,14 @@ Compose UI -> Intent -> ViewModel -> domain store interface -> repository -> enc
 - **App boundary:** dependency construction, WorkManager, notifications, widgets, document URIs, and cross-feature backup orchestration live in `:app`.
 - **Navigation:** the app consumes effects and owns navigation, so ViewModels stay independent of Activity and Navigation 3 types.
 
+## Phase 1 local intelligence foundations
+
+- `:core:extraction` owns deterministic, framework-independent parsing contracts. Extracted values carry confidence, source context, and an explicit confirmation flag; extraction never persists a date or changes lifecycle state.
+- `:core:attachments` owns bounded copies into app-private storage. It supports the narrow Phase 1 image/PDF/text MIME set, sanitizes metadata, rejects empty or oversized inputs, prevents path traversal, and removes only app-owned copies.
+- OCR/barcode clients will sit behind `:core:vision`; feature ViewModels consume structured extraction results rather than SDK objects.
+- Deterministic Use Next, Waste Coach, and Trip Ready policies will sit behind `:core:recommendation` and expose reason codes with every result.
+- Remote generative AI is outside Phase 1. Manual Track, Pack, and Renew flows remain the fallback when an on-device model or Google Play services module is unavailable.
+
 ## State rules
 
 1. A screen's durable rendering input comes from its feature `UiState`.
@@ -29,6 +37,8 @@ Compose UI -> Intent -> ViewModel -> domain store interface -> repository -> enc
 ## Offline and data ownership
 
 Track and Renew use Room; Pack, Settings, and the local profile use Preferences DataStore. Sensitive organizer text and the Pack/profile JSON payloads are encrypted before persistence with AES-256-GCM. The non-exportable key is generated and retained by Android Keystore. Existing plaintext development data is read for compatibility and becomes encrypted when it is next saved; non-sensitive display and reminder settings remain plaintext. Daily reminders use unique periodic WorkManager work. Manual backups are versioned JSON selected through Android's Storage Access Framework. The first-run profile is local identity data, not server authentication. No account, password, network client, ads, or analytics SDK is present.
+
+Imported attachments are copied into an EveryCue-owned directory under app-private storage. Stored metadata uses a relative local reference rather than retaining a third-party document URI. Removing an attachment never deletes the user's source document or gallery image. Temporary captures are isolated under app cache and have an explicit cleanup path.
 
 ## Security boundary
 

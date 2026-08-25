@@ -1,6 +1,7 @@
 package com.everycue.app
 
 import android.app.Application
+import com.everycue.core.attachments.AppPrivateAttachmentStore
 import com.everycue.core.database.EveryCueDatabase
 import com.everycue.core.security.AndroidKeystoreTextCipher
 import com.everycue.feature.pack.PackRepository
@@ -16,6 +17,7 @@ class EveryCueApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val textCipher by lazy { AndroidKeystoreTextCipher() }
     val database: EveryCueDatabase by lazy { EveryCueDatabase.getInstance(this) }
+    val attachmentStore by lazy { AppPrivateAttachmentStore(this) }
     val trackRepository: TrackRepository by lazy { TrackRepository(database, textCipher) }
     val packRepository: PackRepository by lazy { PackRepository(this, textCipher) }
     val renewRepository: RenewRepository by lazy { RenewRepository(database, textCipher) }

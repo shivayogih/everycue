@@ -9,6 +9,8 @@
 - `bundleRelease` with minification and resource shrinking
 - CI artifacts: debug APK, unsigned release APK, and unsigned release AAB
 - CI size ceiling: release APK and AAB must each remain at or below 12 MiB
+- Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
+- Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement
 
 ## Manual device gate
 
@@ -23,6 +25,9 @@
 - Confirm release screenshots, overlays, obscured touches, cleartext traffic, OS backup, and widget/reminder data access are blocked
 - Inspect a release install's local files and confirm sensitive Room/DataStore values are ciphertext; verify an existing plaintext development install migrates records as they are saved
 - Confirm a tampered encrypted payload fails closed and does not render corrupted data
+- Deny/cancel every scanner and system-picker flow; confirm manual Track/Renew entry remains usable
+- Inspect logs and crash breadcrumbs after OCR failure; confirm no OCR text, document reference, or sensitive number appears
+- Confirm discarded camera captures are removed and attachment removal leaves the original gallery/document file intact
 
 ## Play Console gate
 

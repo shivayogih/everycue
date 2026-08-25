@@ -1,11 +1,14 @@
 package com.everycue.app
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Luggage
 import androidx.compose.material.icons.filled.Settings
@@ -17,6 +20,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,7 +36,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import com.everycue.core.navigation.Navigator
+import com.everycue.core.extraction.ExtractionSourceType
+import com.everycue.core.vision.OnDeviceVision
+import com.everycue.core.vision.VisionFailure
 import com.everycue.core.navigation.rememberNavigationState
+import com.everycue.core.designsystem.rememberKeyboardDismissAction
 import com.everycue.feature.pack.PackTripsRoute
 import com.everycue.feature.pack.PackTripDetailRoute
 import com.everycue.feature.pack.PackEffect
@@ -47,6 +55,8 @@ import com.everycue.feature.track.TrackHomeRoute
 import com.everycue.feature.track.TrackDetailRoute
 import com.everycue.feature.track.TrackViewModel
 import com.everycue.feature.track.TrackEffect
+import com.everycue.feature.track.TrackIntent
+import com.everycue.feature.track.SmartAddFailure
 import com.everycue.feature.track.trackEntryBuilder
 
 private data class TopDestination(
@@ -56,6 +66,7 @@ private data class TopDestination(
 )
 
 private val topDestinations = listOf(
+    TopDestination(HomeRoute, R.string.nav_home, Icons.Default.Home),
     TopDestination(TrackHomeRoute, R.string.nav_track, Icons.Default.Inventory2),
     TopDestination(PackTripsRoute, R.string.nav_pack, Icons.Default.Luggage),
     TopDestination(RenewHomeRoute, R.string.nav_renew, Icons.Default.EventRepeat),
@@ -75,15 +86,16 @@ fun EveryCueApp(
     onDeepLinkConsumed: () -> Unit,
     onExit: () -> Unit,
 ) {
-    val trackState by trackViewModel.state.collectAsStateWithLifecycle()
-    val packState by packViewModel.state.collectAsStateWithLifecycle()
-    val packData = packState.data
-    val renewState by renewViewModel.state.collectAsStateWithLifecycle()
-    val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
-    val profileState by profileViewModel.state.collectAsStateWithLifecycle()
+    // Pass the observable State holders into Navigation 3 entries. Decorated entries are
+    // retained, so capturing only their current values would leave an active screen stale.
+    val trackState = trackViewModel.state.collectAsStateWithLifecycle()
+    val packState = packViewModel.state.collectAsStateWithLifecycle()
+    val renewState = renewViewModel.state.collectAsStateWithLifecycle()
+    val settingsState = settingsViewModel.state.collectAsStateWithLifecycle()
+    val profileState = profileViewModel.state.collectAsStateWithLifecycle()
 
     val navigationState = rememberNavigationState(
-        startRoute = TrackHomeRoute,
+        startRoute = HomeRoute,
         topLevelRoutes = topLevelRoutes,
     )
     val navigator = remember(navigationState) { Navigator(navigationState) }
@@ -91,13 +103,49 @@ fun EveryCueApp(
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
     val resources = LocalResources.current
+    val currentRoute = navigationState.currentRoute
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    val vision = remember(context) { OnDeviceVision(context) }
+    DisposableEffect(vision) { onDispose(vision::close) }
+    val importLabelImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            vision.recognizeText(
+                uri = uri,
+                onResult = { trackViewModel.onIntent(TrackIntent.ApplyRecognizedText(it, ExtractionSourceType.IMAGE_OCR)) },
+                onFailure = { trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure())) },
+            )
+        }
+    }
+    val captureLabel = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            vision.recognizeText(
+                bitmap = bitmap,
+                onResult = { trackViewModel.onIntent(TrackIntent.ApplyRecognizedText(it, ExtractionSourceType.CAMERA_OCR)) },
+                onFailure = { trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure())) },
+            )
+        }
+    }
+
+    // Retained navigation entries can retain text-field focus. Never carry the IME to a
+    // different screen, and also close it after Activity recreation/rotation.
+    LaunchedEffect(currentRoute, dismissKeyboard) { dismissKeyboard() }
 
     LaunchedEffect(trackViewModel, navigator, resources) {
         trackViewModel.effects.collect { effect ->
             when (effect) {
-                is TrackEffect.Saved -> if (effect.wasEditing) navigator.goBack()
+                is TrackEffect.Saved -> {
+                    if (effect.wasEditing) navigator.goBack()
                     else navigator.openInTopLevel(TrackHomeRoute, TrackDetailRoute(effect.itemId))
-                TrackEffect.OutcomeRecorded, TrackEffect.Deleted -> navigator.selectTopLevel(TrackHomeRoute)
+                    snackbar.showSnackbar(resources.getString(R.string.track_item_saved))
+                }
+                TrackEffect.OutcomeRecorded -> {
+                    navigator.selectTopLevel(TrackHomeRoute)
+                    snackbar.showSnackbar(resources.getString(R.string.track_outcome_saved))
+                }
+                TrackEffect.Deleted -> {
+                    navigator.selectTopLevel(TrackHomeRoute)
+                    snackbar.showSnackbar(resources.getString(R.string.track_item_deleted))
+                }
                 is TrackEffect.ShowError -> snackbar.showSnackbar(resources.getString(effect.messageResource))
             }
         }
@@ -106,7 +154,7 @@ fun EveryCueApp(
         packViewModel.effects.collect { effect ->
             when (effect) {
                 is PackEffect.TripCreated -> navigator.openInTopLevel(PackTripsRoute, PackTripDetailRoute(effect.tripId))
-                PackEffect.ItemAdded -> navigator.goBack()
+                PackEffect.ItemAdded -> snackbar.showSnackbar(resources.getString(R.string.pack_item_added))
                 PackEffect.TripUpdated -> navigator.goBack()
                 PackEffect.TripDeleted, PackEffect.Reset -> navigator.selectTopLevel(PackTripsRoute)
                 is PackEffect.ShowError -> snackbar.showSnackbar(resources.getString(effect.messageResource))
@@ -116,10 +164,19 @@ fun EveryCueApp(
     LaunchedEffect(renewViewModel, navigator, resources) {
         renewViewModel.effects.collect { effect ->
             when (effect) {
-                is RenewEffect.Saved -> if (effect.wasEditing) navigator.goBack()
+                is RenewEffect.Saved -> {
+                    if (effect.wasEditing) navigator.goBack()
                     else navigator.openInTopLevel(RenewHomeRoute, RenewDetailRoute(effect.renewalId))
-                RenewEffect.MarkedRenewed -> navigator.goBack()
-                RenewEffect.Deleted -> navigator.selectTopLevel(RenewHomeRoute)
+                    snackbar.showSnackbar(resources.getString(R.string.renewal_saved))
+                }
+                RenewEffect.MarkedRenewed -> {
+                    navigator.goBack()
+                    snackbar.showSnackbar(resources.getString(R.string.renewal_completed))
+                }
+                RenewEffect.Deleted -> {
+                    navigator.selectTopLevel(RenewHomeRoute)
+                    snackbar.showSnackbar(resources.getString(R.string.renewal_deleted))
+                }
                 is RenewEffect.ShowError -> snackbar.showSnackbar(resources.getString(effect.messageResource))
             }
         }
@@ -168,15 +225,44 @@ fun EveryCueApp(
     }
 
     val entries = entryProvider {
-        trackEntryBuilder(trackState, trackViewModel, navigator)
-        packEntryBuilder(packData, packViewModel, navigator)
+        entry<HomeRoute> {
+            HomeScreen(
+                profile = profileState.value.profile,
+                track = trackState.value,
+                pack = packState.value.data,
+                renew = renewState.value,
+                onTrack = { navigator.selectTopLevel(TrackHomeRoute) },
+                onPack = { navigator.selectTopLevel(PackTripsRoute) },
+                onRenew = { navigator.selectTopLevel(RenewHomeRoute) },
+                onTrackItem = { navigator.openInTopLevel(TrackHomeRoute, TrackDetailRoute(it)) },
+                onPackTrip = { navigator.openInTopLevel(PackTripsRoute, PackTripDetailRoute(it)) },
+                onRenewal = { navigator.openInTopLevel(RenewHomeRoute, RenewDetailRoute(it)) },
+            )
+        }
+        trackEntryBuilder(
+            state = trackState,
+            viewModel = trackViewModel,
+            navigator = navigator,
+            onScanBarcode = {
+                vision.scanBarcode(
+                    onResult = { trackViewModel.onIntent(TrackIntent.ApplyBarcode(it)) },
+                    onFailure = { trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure())) },
+                )
+            },
+            onScanLabel = { captureLabel.launch(null) },
+            onImportImage = { importLabelImage.launch("image/*") },
+        )
+        packEntryBuilder(packState, packViewModel, navigator)
         renewEntryBuilder(renewState, renewViewModel, navigator)
         entry<SettingsRoute> {
+            val track = trackState.value
+            val pack = packState.value
+            val renew = renewState.value
             SettingsScreen(
-                trackCount = trackState.items.size,
-                tripCount = packData.trips.size,
-                renewalCount = renewState.renewals.size,
-                state = settingsState,
+                trackCount = track.items.size,
+                tripCount = pack.data.trips.size,
+                renewalCount = renew.renewals.size,
+                state = settingsState.value,
                 onIntent = settingsViewModel::onIntent,
                 onProfile = { navigator.navigate(ProfileRoute) },
                 onAbout = { navigator.navigate(AboutRoute) },
@@ -187,7 +273,7 @@ fun EveryCueApp(
         }
         entry<ProfileRoute> {
             ProfileScreen(
-                state = profileState,
+                state = profileState.value,
                 onIntent = profileViewModel::onIntent,
                 onBack = { navigator.goBack() },
             )
@@ -198,7 +284,7 @@ fun EveryCueApp(
         contentWindowInsets = WindowInsets(0.dp),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            if (navigationState.currentRoute in topLevelRoutes) {
+            if (currentRoute in topLevelRoutes) {
                 NavigationBar {
                     topDestinations.forEach { destination ->
                         NavigationBarItem(
@@ -223,3 +309,9 @@ fun EveryCueApp(
     }
 }
 
+private fun VisionFailure.toSmartAddFailure(): SmartAddFailure = when (this) {
+    VisionFailure.MODEL_UNAVAILABLE -> SmartAddFailure.MODEL_UNAVAILABLE
+    VisionFailure.IMAGE_UNREADABLE -> SmartAddFailure.IMAGE_UNREADABLE
+    VisionFailure.NO_RESULT -> SmartAddFailure.NO_RESULT
+    VisionFailure.CANCELLED -> SmartAddFailure.CANCELLED
+}

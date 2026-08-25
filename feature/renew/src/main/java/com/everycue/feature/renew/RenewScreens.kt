@@ -7,10 +7,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -44,17 +48,22 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.everycue.core.designsystem.EmptyState
 import com.everycue.core.designsystem.MetricCard
 import com.everycue.core.designsystem.SectionHeader
+import com.everycue.core.designsystem.DismissKeyboardOnScroll
+import com.everycue.core.designsystem.rememberKeyboardDismissAction
 import java.time.LocalDate
 
 @Composable
@@ -216,25 +225,34 @@ fun RenewListScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var selectedTypeName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedType = selectedTypeName?.let { RenewalType.valueOf(it) }
-    val visible = renewals.filter {
-        (query.isBlank() || it.title.contains(query, true) || it.provider.contains(query, true)) &&
-            (selectedType == null || it.type == selectedType)
+    val visible = remember(renewals, query, selectedType) {
+        renewals.filter {
+            (query.isBlank() || it.title.contains(query, true) || it.provider.contains(query, true)) &&
+                (selectedType == null || it.type == selectedType)
+        }
     }
+    val listState = rememberLazyListState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    DismissKeyboardOnScroll(listState)
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.all_renewals)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
         floatingActionButton = { ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.add)) }) },
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 108.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item { OutlinedTextField(query, { query = it }, label = { Text(stringResource(R.string.search_title_provider)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(query, { query = it }, label = { Text(stringResource(R.string.search_title_provider)) }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { dismissKeyboard() }), modifier = Modifier.fillMaxWidth()) }
             item {
                 TypeChips(
                     selected = selectedType,
-                    onSelected = { type -> selectedTypeName = if (selectedType == type) null else type.name },
+                    onSelected = { type ->
+                        dismissKeyboard()
+                        selectedTypeName = if (selectedType == type) null else type.name
+                    },
                 )
             }
             if (visible.isEmpty()) {
@@ -313,8 +331,20 @@ fun RenewEditorScreen(
     var reference by rememberSaveable(existing?.id) { mutableStateOf(existing?.referenceNumber.orEmpty()) }
     var notes by rememberSaveable(existing?.id) { mutableStateOf(existing?.notes.orEmpty()) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var attemptedSubmit by rememberSaveable(existing?.id) { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
     val reminder = reminderDays.toIntOrNull()
-    val valid = title.isNotBlank() && reminder != null && reminder >= 0
+    val candidate = RenewalDraft(
+        title = title,
+        type = RenewalType.valueOf(typeName),
+        dueEpochDay = dueEpochDay,
+        reminderDays = reminder ?: -1,
+        provider = provider,
+        referenceNumber = reference,
+        notes = notes,
+    )
+    val validation = candidate.validationErrors()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(if (existing == null) R.string.add_renewal else R.string.edit_renewal)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
@@ -322,41 +352,79 @@ fun RenewEditorScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick = {
-                        onSave(
-                            RenewalDraft(
-                                title = title,
-                                type = RenewalType.valueOf(typeName),
-                                dueEpochDay = dueEpochDay,
-                                reminderDays = reminder ?: DEFAULT_RENEW_WARNING_DAYS,
-                                provider = provider,
-                                referenceNumber = reference,
-                                notes = notes,
-                            ),
-                        )
+                        attemptedSubmit = true
+                        if (validation.isValid) {
+                            dismissKeyboard()
+                            onSave(candidate)
+                        }
                     },
-                    enabled = valid,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                 ) { Text(stringResource(if (existing == null) R.string.save_renewal else R.string.save_changes)) }
             }
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(scrollState).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.title)) }, placeholder = { Text(stringResource(R.string.title_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                title,
+                { title = it.take(100) },
+                label = { Text(stringResource(R.string.title)) },
+                placeholder = { Text(stringResource(R.string.title_hint)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.title != null,
+                supportingText = validation.title.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
             Text(stringResource(R.string.type), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             TypeChips(selected = RenewalType.valueOf(typeName), onSelected = { typeName = it.name })
-            ElevatedCard(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(onClick = { dismissKeyboard(); showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(R.string.due_date), style = MaterialTheme.typography.labelMedium)
                     Text(dueEpochDay.asRenewDateLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                 }
             }
-            OutlinedTextField(reminderDays, { reminderDays = it }, label = { Text(stringResource(R.string.remind_before_days)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(provider, { provider = it }, label = { Text(stringResource(R.string.provider_issuer)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(reference, { reference = it }, label = { Text(stringResource(R.string.reference_number)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                reminderDays,
+                { reminderDays = it.filter(Char::isDigit).take(4) },
+                label = { Text(stringResource(R.string.remind_before_days)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.reminderDays != null,
+                supportingText = validation.reminderDays.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                provider,
+                { provider = it.take(100) },
+                label = { Text(stringResource(R.string.provider_issuer)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.provider != null,
+                supportingText = validation.provider.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                reference,
+                { reference = it.take(80).filter { character -> character.isLetterOrDigit() || character.isWhitespace() || character in setOf('.', '/', '_', '-') } },
+                label = { Text(stringResource(R.string.reference_number)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.reference != null,
+                supportingText = validation.reference.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                notes,
+                { notes = it.take(500) },
+                label = { Text(stringResource(R.string.notes)) },
+                minLines = 3,
+                isError = attemptedSubmit && validation.notes != null,
+                supportingText = validation.notes.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 
@@ -471,27 +539,40 @@ fun MarkRenewedScreen(
     var newDueEpochDay by rememberSaveable(item.id) { mutableStateOf(LocalDate.ofEpochDay(item.dueEpochDay).plusYears(1).toEpochDay()) }
     var notes by rememberSaveable(item.id) { mutableStateOf("") }
     var showPicker by rememberSaveable { mutableStateOf(false) }
+    var attemptedSubmit by rememberSaveable(item.id) { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    val newDateValid = newDueEpochDay > LocalDate.now().toEpochDay()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.mark_renewed)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) },
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
-                Button(onClick = { onConfirm(newDueEpochDay, notes) }, modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp)) { Text(stringResource(R.string.save_new_due_date)) }
+                Button(onClick = {
+                    attemptedSubmit = true
+                    if (newDateValid) {
+                        dismissKeyboard()
+                        onConfirm(newDueEpochDay, notes)
+                    }
+                }, modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp)) { Text(stringResource(R.string.save_new_due_date)) }
             }
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(scrollState).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(stringResource(R.string.currently_due, item.title, item.dueEpochDay.asRenewDateLabel()))
-            ElevatedCard(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(onClick = { dismissKeyboard(); showPicker = true }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(R.string.new_due_date), style = MaterialTheme.typography.labelMedium)
                     Text(newDueEpochDay.asRenewDateLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
-            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.renewal_notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            if (attemptedSubmit && !newDateValid) {
+                Text(stringResource(R.string.error_new_due_date), color = MaterialTheme.colorScheme.error)
+            }
+            OutlinedTextField(notes, { notes = it.take(500) }, label = { Text(stringResource(R.string.renewal_notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
         }
     }
     if (showPicker) {
@@ -543,4 +624,3 @@ fun DeleteRenewalDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
-

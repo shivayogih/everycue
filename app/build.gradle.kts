@@ -64,6 +64,7 @@ dependencies {
     implementation(project(":core:security"))
     implementation(project(":core:extraction"))
     implementation(project(":core:attachments"))
+    implementation(project(":core:vision"))
     implementation(project(":feature:track"))
     implementation(project(":feature:pack"))
     implementation(project(":feature:renew"))

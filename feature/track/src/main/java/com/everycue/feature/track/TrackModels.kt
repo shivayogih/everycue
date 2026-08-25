@@ -1,5 +1,7 @@
 package com.everycue.feature.track
 
+import androidx.annotation.StringRes
+import com.everycue.core.extraction.SmartAddDraft
 import java.time.LocalDate
 
 const val DEFAULT_TRACK_WARNING_DAYS = 7
@@ -29,6 +31,7 @@ data class TrackItem(
     val reminderDays: Int,
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
+    val barcode: String? = null,
 ) {
     fun daysRemaining(todayEpochDay: Long = LocalDate.now().toEpochDay()): Long = expiryEpochDay - todayEpochDay
 
@@ -64,12 +67,43 @@ data class TrackDraft(
     val storageLocation: String,
     val notes: String,
     val reminderDays: Int,
-)
+    val barcode: String? = null,
+) {
+    fun validationErrors(): TrackValidationErrors = TrackValidationErrors(
+        name = if (name.trim().length in 2..80 && name.any(Char::isLetterOrDigit)) null else R.string.error_product_name,
+        quantity = if (quantity.isFinite() && quantity in 0.001..1_000_000.0) null else R.string.error_quantity,
+        unit = if (unit.trim().matches(Regex("[\\p{L}][\\p{L}\\p{M} .]{0,19}"))) null else R.string.error_unit,
+        dates = if (purchaseEpochDay == null || purchaseEpochDay <= expiryEpochDay) null else R.string.error_purchase_after_expiry,
+        location = if (storageLocation.length <= 100 && (storageLocation.isBlank() || storageLocation.any(Char::isLetterOrDigit))) null else R.string.error_storage_location,
+        notes = if (notes.length <= 500) null else R.string.error_notes_length,
+        reminderDays = if (reminderDays in 0..3650) null else R.string.error_warning_days,
+    )
+
+    fun validate() {
+        validationErrors().firstError()?.let { throw TrackValidationException(it) }
+    }
+}
+
+data class TrackValidationErrors(
+    @StringRes val name: Int? = null,
+    @StringRes val quantity: Int? = null,
+    @StringRes val unit: Int? = null,
+    @StringRes val dates: Int? = null,
+    @StringRes val location: Int? = null,
+    @StringRes val notes: Int? = null,
+    @StringRes val reminderDays: Int? = null,
+) {
+    val isValid: Boolean get() = firstError() == null
+    fun firstError(): Int? = name ?: quantity ?: unit ?: dates ?: location ?: notes ?: reminderDays
+}
+
+class TrackValidationException(@StringRes val messageResource: Int) : IllegalArgumentException()
 
 data class TrackUiState(
     val items: List<TrackItem> = emptyList(),
     val events: List<TrackEvent> = emptyList(),
     val isBusy: Boolean = false,
+    val smartAddDraft: SmartAddDraft? = null,
 ) {
     val freshCount: Int
         get() {
@@ -100,4 +134,3 @@ data class TrackUiState(
             return if (decided == 0) 0 else (consumedCount * 100f / decided).toInt()
         }
 }
-

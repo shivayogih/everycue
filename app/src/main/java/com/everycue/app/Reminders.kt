@@ -28,8 +28,12 @@ const val EXTRA_ITEM_ID = "com.everycue.app.extra.ITEM_ID"
 const val DESTINATION_TRACK = "track"
 const val DESTINATION_RENEW = "renew"
 
-internal fun delayUntilHourMillis(now: ZonedDateTime, hour: Int): Long {
-    var next = now.withHour(hour.coerceIn(0, 23)).withMinute(0).withSecond(0).withNano(0)
+internal fun delayUntilTimeMillis(now: ZonedDateTime, hour: Int, minute: Int): Long {
+    var next = now
+        .withHour(hour.coerceIn(0, 23))
+        .withMinute(minute.coerceIn(0, 59))
+        .withSecond(0)
+        .withNano(0)
     if (!next.isAfter(now)) next = next.plusDays(1)
     return Duration.between(now, next).toMillis()
 }
@@ -44,7 +48,10 @@ object ReminderScheduler {
             return
         }
         val request = PeriodicWorkRequestBuilder<ReminderWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(delayUntilHourMillis(ZonedDateTime.now(), settings.reminderHour), TimeUnit.MILLISECONDS)
+            .setInitialDelay(
+                delayUntilTimeMillis(ZonedDateTime.now(), settings.reminderHour, settings.reminderMinute),
+                TimeUnit.MILLISECONDS,
+            )
             .build()
         manager.enqueueUniquePeriodicWork(UNIQUE_WORK, ExistingPeriodicWorkPolicy.UPDATE, request)
     }

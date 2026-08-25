@@ -11,4 +11,3 @@ interface RenewStore {
     suspend fun delete(renewalId: String)
     suspend fun clearAll()
 }
-

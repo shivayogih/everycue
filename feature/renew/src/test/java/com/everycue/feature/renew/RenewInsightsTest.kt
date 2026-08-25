@@ -24,4 +24,3 @@ class RenewInsightsTest {
         id, id, RenewalType.OTHER, due, reminderDays, "", "", "", null, 0, 0,
     )
 }
-

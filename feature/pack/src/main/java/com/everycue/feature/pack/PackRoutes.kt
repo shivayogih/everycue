@@ -11,4 +11,3 @@ import kotlinx.serialization.Serializable
 @Serializable data class PackTemplateDetailRoute(val templateId: String) : NavKey
 @Serializable data class AddPackItemDialogRoute(val tripId: Long) : NavKey
 @Serializable data class DeletePackTripDialogRoute(val tripId: Long, val tripName: String) : NavKey
-

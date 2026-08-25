@@ -53,4 +53,3 @@ class Navigator(
         while (stack.size > 1) stack.removeLastOrNull()
     }
 }
-

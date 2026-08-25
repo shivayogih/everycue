@@ -19,7 +19,7 @@ sealed interface SettingsIntent {
     data class SetTheme(val value: ThemePreference) : SettingsIntent
     data class SetDynamicColor(val enabled: Boolean) : SettingsIntent
     data class SetReminders(val enabled: Boolean) : SettingsIntent
-    data class SetReminderHour(val hour: Int) : SettingsIntent
+    data class SetReminderTime(val hour: Int, val minute: Int) : SettingsIntent
     data class Export(val uri: Uri) : SettingsIntent
     data class Import(val uri: Uri) : SettingsIntent
 }
@@ -42,8 +42,12 @@ class SettingsViewModel(
         when (intent) {
             is SettingsIntent.SetTheme -> execute { settingsRepository.setTheme(intent.value) }
             is SettingsIntent.SetDynamicColor -> execute { settingsRepository.setDynamicColor(intent.enabled) }
-            is SettingsIntent.SetReminders -> execute { settingsRepository.setRemindersEnabled(intent.enabled) }
-            is SettingsIntent.SetReminderHour -> execute { settingsRepository.setReminderHour(intent.hour) }
+            is SettingsIntent.SetReminders -> execute(
+                if (intent.enabled) R.string.reminders_enabled_message else R.string.reminders_disabled_message,
+            ) { settingsRepository.setRemindersEnabled(intent.enabled) }
+            is SettingsIntent.SetReminderTime -> execute(R.string.reminder_time_updated) {
+                settingsRepository.setReminderTime(intent.hour, intent.minute)
+            }
             is SettingsIntent.Export -> execute(R.string.backup_exported) { backupRepository.exportTo(intent.uri) }
             is SettingsIntent.Import -> execute(R.string.backup_restored) { backupRepository.importFrom(intent.uri) }
         }
@@ -70,4 +74,3 @@ class SettingsViewModel(
         }
     }
 }
-

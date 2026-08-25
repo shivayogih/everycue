@@ -11,4 +11,3 @@ import kotlinx.serialization.Serializable
 @Serializable data class RenewDetailRoute(val renewalId: String) : NavKey
 @Serializable data class MarkRenewedRoute(val renewalId: String) : NavKey
 @Serializable data class DeleteRenewalDialogRoute(val renewalId: String, val title: String) : NavKey
-

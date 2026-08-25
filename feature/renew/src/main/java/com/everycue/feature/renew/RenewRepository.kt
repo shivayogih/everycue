@@ -19,8 +19,7 @@ class RenewRepository(
     override val events: Flow<List<RenewalEvent>> = dao.observeEvents().map { rows -> rows.map { it.toModel(cipher) } }
 
     override suspend fun save(draft: RenewalDraft, renewalId: String?): String {
-        require(draft.title.isNotBlank()) { "Title is required." }
-        require(draft.reminderDays >= 0) { "Reminder days cannot be negative." }
+        draft.validate()
 
         val now = System.currentTimeMillis()
         val existing = if (renewalId == null) null else dao.getRenewal(renewalId)
@@ -45,6 +44,8 @@ class RenewRepository(
     }
 
     override suspend fun markRenewed(renewalId: String, newDueEpochDay: Long, notes: String) {
+        require(newDueEpochDay > java.time.LocalDate.now().toEpochDay()) { "New due date must be in the future." }
+        require(notes.length <= 500) { "Renewal notes are too long." }
         database.withTransaction {
             val existing = dao.getRenewal(renewalId) ?: return@withTransaction
             val now = System.currentTimeMillis()

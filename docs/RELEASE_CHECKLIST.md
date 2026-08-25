@@ -11,6 +11,7 @@
 - CI size ceiling: release APK and AAB must each remain at or below 12 MiB
 - Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
 - Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement
+- Room 1→2 migration retains Track/Renew data and adds an optional encrypted barcode field
 
 ## Manual device gate
 
@@ -28,6 +29,7 @@
 - Deny/cancel every scanner and system-picker flow; confirm manual Track/Renew entry remains usable
 - Inspect logs and crash breadcrumbs after OCR failure; confirm no OCR text, document reference, or sensitive number appears
 - Confirm discarded camera captures are removed and attachment removal leaves the original gallery/document file intact
+- Test Smart Add before and after Google Play services model download; verify cancellation and model failure return to manual entry
 
 ## Play Console gate
 

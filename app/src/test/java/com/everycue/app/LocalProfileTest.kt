@@ -1,6 +1,7 @@
 package com.everycue.app
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class LocalProfileTest {
@@ -22,5 +23,13 @@ class LocalProfileTest {
     fun addressRejectsMoreThanFiveLines() {
         LocalProfile("Asha", "Rao", "+91", "9876543210", "asha@example.com", "1\n2\n3\n4\n5\n6", "560001").validate()
     }
-}
 
+    @Test
+    fun profileRejectsDummyNumericAndSpecialCharacterData() {
+        val profile = LocalProfile("123", "@@@", "+000", "1111111111", "not-an-email", "!!!!!!!!!", "ABC@")
+        val errors = profile.validationErrors()
+        assertFalse(errors.isValid)
+        listOf(errors.firstName, errors.lastName, errors.countryCode, errors.mobile, errors.email, errors.address, errors.pincode)
+            .forEach { assertTrue(it != null) }
+    }
+}

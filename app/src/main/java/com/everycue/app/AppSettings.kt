@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.io.IOException
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -25,7 +28,12 @@ data class AppSettings(
     val dynamicColor: Boolean = true,
     val remindersEnabled: Boolean = false,
     val reminderHour: Int = 9,
+    val reminderMinute: Int = 0,
 )
+
+fun AppSettings.reminderTimeLabel(locale: Locale = Locale.getDefault()): String =
+    LocalTime.of(reminderHour.coerceIn(0, 23), reminderMinute.coerceIn(0, 59))
+        .format(DateTimeFormatter.ofPattern("h:mm a", locale))
 
 interface SettingsStore {
     val settings: Flow<AppSettings>
@@ -33,7 +41,7 @@ interface SettingsStore {
     suspend fun setTheme(value: ThemePreference)
     suspend fun setDynamicColor(value: Boolean)
     suspend fun setRemindersEnabled(value: Boolean)
-    suspend fun setReminderHour(value: Int)
+    suspend fun setReminderTime(hour: Int, minute: Int)
     suspend fun replaceAll(value: AppSettings)
 }
 
@@ -50,6 +58,7 @@ class SettingsRepository(context: Context) : SettingsStore {
                 dynamicColor = preferences[DYNAMIC_COLOR] ?: true,
                 remindersEnabled = preferences[REMINDERS_ENABLED] ?: false,
                 reminderHour = (preferences[REMINDER_HOUR] ?: 9).coerceIn(0, 23),
+                reminderMinute = (preferences[REMINDER_MINUTE] ?: 0).coerceIn(0, 59),
             )
         }
 
@@ -58,7 +67,9 @@ class SettingsRepository(context: Context) : SettingsStore {
     override suspend fun setTheme(value: ThemePreference) = update { copy(theme = value) }
     override suspend fun setDynamicColor(value: Boolean) = update { copy(dynamicColor = value) }
     override suspend fun setRemindersEnabled(value: Boolean) = update { copy(remindersEnabled = value) }
-    override suspend fun setReminderHour(value: Int) = update { copy(reminderHour = value.coerceIn(0, 23)) }
+    override suspend fun setReminderTime(hour: Int, minute: Int) = update {
+        copy(reminderHour = hour.coerceIn(0, 23), reminderMinute = minute.coerceIn(0, 59))
+    }
     override suspend fun replaceAll(value: AppSettings) = write(value)
 
     private suspend fun update(transform: AppSettings.() -> AppSettings) {
@@ -71,6 +82,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             preferences[DYNAMIC_COLOR] = value.dynamicColor
             preferences[REMINDERS_ENABLED] = value.remindersEnabled
             preferences[REMINDER_HOUR] = value.reminderHour.coerceIn(0, 23)
+            preferences[REMINDER_MINUTE] = value.reminderMinute.coerceIn(0, 59)
         }
     }
 
@@ -79,6 +91,6 @@ class SettingsRepository(context: Context) : SettingsStore {
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
         val REMINDER_HOUR = intPreferencesKey("reminder_hour")
+        val REMINDER_MINUTE = intPreferencesKey("reminder_minute")
     }
 }
-

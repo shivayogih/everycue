@@ -78,4 +78,3 @@ class NavigationState internal constructor(
         return visibleTopLevels.flatMap { decoratedEntries.getValue(it) }
     }
 }
-

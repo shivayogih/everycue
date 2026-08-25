@@ -26,3 +26,28 @@ fun Trip.packingSummary(noItems: String = "", ready: String = "", packed: (Int, 
     else -> packed(packedCount, totalCount)
 }
 
+internal data class PackingSection(
+    val category: PackingCategory,
+    val items: List<PackingItem>,
+)
+
+/** Builds the visible list in one pass, even when a trip contains hundreds of items. */
+internal fun buildPackingSections(
+    items: List<PackingItem>,
+    query: String,
+): List<PackingSection> {
+    val buckets = Array(PackingCategory.entries.size) { mutableListOf<PackingItem>() }
+    val search = query.trim()
+    items.forEach { item ->
+        if (search.isEmpty() || item.name.contains(search, ignoreCase = true)) {
+            buckets[item.category.ordinal].add(item)
+        }
+    }
+    val itemOrder = compareBy<PackingItem>(PackingItem::isPacked).thenBy(PackingItem::position)
+    return PackingCategory.entries.mapIndexedNotNull { index, category ->
+        buckets[index]
+            .takeIf(MutableList<PackingItem>::isNotEmpty)
+            ?.also { it.sortWith(itemOrder) }
+            ?.let { PackingSection(category, it) }
+    }
+}

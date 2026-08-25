@@ -9,20 +9,27 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -47,19 +54,27 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.everycue.core.designsystem.EmptyState
 import com.everycue.core.designsystem.MetricCard
 import com.everycue.core.designsystem.SectionHeader
+import com.everycue.core.designsystem.DismissKeyboardOnScroll
+import com.everycue.core.designsystem.rememberKeyboardDismissAction
+import com.everycue.core.extraction.ExtractionSourceType
+import com.everycue.core.extraction.SmartAddDraft
 import java.time.LocalDate
 
 @Composable
@@ -208,10 +223,15 @@ fun TrackInventoryScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var selectedCategory by rememberSaveable { mutableStateOf<TrackCategory?>(null) }
-    val visible = items.filter { item ->
-        (query.isBlank() || item.name.contains(query, ignoreCase = true) || item.storageLocation.contains(query, ignoreCase = true)) &&
-            (selectedCategory == null || item.category == selectedCategory)
+    val visible = remember(items, query, selectedCategory) {
+        items.filter { item ->
+            (query.isBlank() || item.name.contains(query, ignoreCase = true) || item.storageLocation.contains(query, ignoreCase = true)) &&
+                (selectedCategory == null || item.category == selectedCategory)
+        }
     }
+    val listState = rememberLazyListState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    DismissKeyboardOnScroll(listState)
 
     Scaffold(
         topBar = {
@@ -227,6 +247,7 @@ fun TrackInventoryScreen(
         },
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 108.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -237,13 +258,18 @@ fun TrackInventoryScreen(
                     onValueChange = { query = it },
                     label = { Text(stringResource(R.string.search_name_location)) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { dismissKeyboard() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
                 LazyCategoryChips(
                     selected = selectedCategory,
-                    onSelected = { selectedCategory = if (selectedCategory == it) null else it },
+                    onSelected = {
+                        dismissKeyboard()
+                        selectedCategory = if (selectedCategory == it) null else it
+                    },
                 )
             }
             if (visible.isEmpty()) {
@@ -314,7 +340,12 @@ private fun TrackItemCard(item: TrackItem, onClick: () -> Unit) {
 @Composable
 fun TrackEditorScreen(
     existing: TrackItem?,
+    smartDraft: SmartAddDraft?,
     onBack: () -> Unit,
+    onScanBarcode: () -> Unit,
+    onScanLabel: () -> Unit,
+    onImportImage: () -> Unit,
+    onClearSmartAdd: () -> Unit,
     onSave: (TrackDraft) -> Unit,
 ) {
     val defaultUnit = stringResource(R.string.default_unit)
@@ -329,10 +360,45 @@ fun TrackEditorScreen(
     var reminderDays by rememberSaveable(existing?.id) { mutableStateOf((existing?.reminderDays ?: DEFAULT_TRACK_WARNING_DAYS).toString()) }
     var showPurchasePicker by rememberSaveable { mutableStateOf(false) }
     var showExpiryPicker by rememberSaveable { mutableStateOf(false) }
+    var attemptedSubmit by rememberSaveable(existing?.id) { mutableStateOf(false) }
+    var barcode by rememberSaveable(existing?.id) { mutableStateOf(existing?.barcode) }
+    var expiryConfirmed by rememberSaveable(existing?.id) { mutableStateOf(existing != null || smartDraft == null) }
+    val scrollState = rememberScrollState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+
+    LaunchedEffect(smartDraft?.token, existing?.id) {
+        if (existing == null && smartDraft != null) {
+            smartDraft.productName?.value?.let { name = it.take(80) }
+            smartDraft.categoryName?.value?.let { value ->
+                runCatching { TrackCategory.valueOf(value) }.getOrNull()?.let { categoryName = it.name }
+            }
+            smartDraft.quantity?.value?.let { quantity = it.toString() }
+            smartDraft.purchaseDate?.field?.value?.let { purchaseEpochDay = it.toEpochDay() }
+            smartDraft.expiryDate?.field?.value?.let {
+                expiryEpochDay = it.toEpochDay()
+                expiryConfirmed = false
+            }
+            smartDraft.storageLocation?.value?.let { location = it.take(100) }
+            smartDraft.notes?.value?.let { notes = it.take(500) }
+            barcode = smartDraft.barcode?.value
+        }
+    }
 
     val parsedQuantity = quantity.toDoubleOrNull()
     val parsedReminder = reminderDays.toIntOrNull()
-    val valid = name.isNotBlank() && parsedQuantity != null && parsedQuantity > 0 && parsedReminder != null && parsedReminder >= 0
+    val candidate = TrackDraft(
+        name = name,
+        category = TrackCategory.valueOf(categoryName),
+        quantity = parsedQuantity ?: Double.NaN,
+        unit = unit,
+        purchaseEpochDay = purchaseEpochDay,
+        expiryEpochDay = expiryEpochDay,
+        storageLocation = location,
+        notes = notes,
+        reminderDays = parsedReminder ?: -1,
+        barcode = barcode,
+    )
+    val validation = candidate.validationErrors()
 
     Scaffold(
         topBar = {
@@ -345,47 +411,149 @@ fun TrackEditorScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick = {
-                        onSave(
-                            TrackDraft(
-                                name = name,
-                                category = TrackCategory.valueOf(categoryName),
-                                quantity = parsedQuantity ?: 1.0,
-                                unit = unit,
-                                purchaseEpochDay = purchaseEpochDay,
-                                expiryEpochDay = expiryEpochDay,
-                                storageLocation = location,
-                                notes = notes,
-                                reminderDays = parsedReminder ?: DEFAULT_TRACK_WARNING_DAYS,
-                            ),
-                        )
+                        attemptedSubmit = true
+                        if (validation.isValid && expiryConfirmed) {
+                            dismissKeyboard()
+                            onSave(candidate)
+                        }
                     },
-                    enabled = valid,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                 ) { Text(stringResource(if (existing == null) R.string.save_item else R.string.save_changes)) }
             }
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(scrollState).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.product_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            if (existing == null) {
+                Text(stringResource(R.string.smart_add), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = onScanBarcode, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.scan_barcode))
+                    }
+                    FilledTonalButton(onClick = onScanLabel, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.scan_label))
+                    }
+                }
+                OutlinedButton(onClick = onImportImage, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Image, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.import_label_image))
+                }
+                smartDraft?.let { draft ->
+                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(stringResource(R.string.review_extracted_fields), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                stringResource(
+                                    when (draft.sourceType) {
+                                        ExtractionSourceType.BARCODE -> R.string.smart_add_source_barcode
+                                        ExtractionSourceType.CAMERA_OCR -> R.string.smart_add_source_camera
+                                        ExtractionSourceType.IMAGE_OCR -> R.string.smart_add_source_image
+                                        else -> R.string.smart_add_source_other
+                                    },
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (draft.possibleDuplicateIds.isNotEmpty()) {
+                                Text(stringResource(R.string.possible_duplicate), color = MaterialTheme.colorScheme.error)
+                            }
+                            TextButton(onClick = onClearSmartAdd) { Text(stringResource(R.string.clear_smart_add)) }
+                        }
+                    }
+                }
+            }
+            OutlinedTextField(
+                name,
+                { name = it.take(80) },
+                label = { Text(stringResource(R.string.product_name)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.name != null,
+                supportingText = validation.name.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
             Text(stringResource(R.string.category), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             LazyCategoryChips(
                 selected = TrackCategory.valueOf(categoryName),
                 onSelected = { categoryName = it.name },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(quantity, { quantity = it }, label = { Text(stringResource(R.string.quantity)) }, singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(unit, { unit = it }, label = { Text(stringResource(R.string.unit)) }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(
+                    quantity,
+                    { quantity = it.toDecimalInput(10) },
+                    label = { Text(stringResource(R.string.quantity)) },
+                    singleLine = true,
+                    isError = attemptedSubmit && validation.quantity != null,
+                    supportingText = validation.quantity.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    unit,
+                    { unit = it.take(20).filter { character -> character.isLetter() || character.isWhitespace() || character == '.' } },
+                    label = { Text(stringResource(R.string.unit)) },
+                    singleLine = true,
+                    isError = attemptedSubmit && validation.unit != null,
+                    supportingText = validation.unit.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    modifier = Modifier.weight(1f),
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DateCard(stringResource(R.string.purchased), purchaseEpochDay?.asEpochDayLabel() ?: stringResource(R.string.optional), { showPurchasePicker = true }, Modifier.weight(1f))
-                DateCard(stringResource(R.string.expires), expiryEpochDay.asEpochDayLabel(), { showExpiryPicker = true }, Modifier.weight(1f))
+                DateCard(stringResource(R.string.purchased), purchaseEpochDay?.asEpochDayLabel() ?: stringResource(R.string.optional), { dismissKeyboard(); showPurchasePicker = true }, Modifier.weight(1f))
+                DateCard(stringResource(R.string.expires), expiryEpochDay.asEpochDayLabel(), { dismissKeyboard(); showExpiryPicker = true }, Modifier.weight(1f))
             }
-            OutlinedTextField(location, { location = it }, label = { Text(stringResource(R.string.storage_location)) }, placeholder = { Text(stringResource(R.string.storage_location_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(reminderDays, { reminderDays = it }, label = { Text(stringResource(R.string.warning_days)) }, supportingText = { Text(stringResource(R.string.warning_days_help)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.notes)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            validation.dates.takeIf { attemptedSubmit }?.let { error ->
+                Text(stringResource(error), color = MaterialTheme.colorScheme.error)
+            }
+            if (!expiryConfirmed) {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.confirm_extracted_expiry), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.confirm_extracted_expiry_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = { expiryConfirmed = true }) { Text(stringResource(R.string.confirm_date)) }
+                    }
+                }
+            }
+            OutlinedTextField(
+                location,
+                { location = it.take(100) },
+                label = { Text(stringResource(R.string.storage_location)) },
+                placeholder = { Text(stringResource(R.string.storage_location_hint)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.location != null,
+                supportingText = validation.location.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                reminderDays,
+                { reminderDays = it.filter(Char::isDigit).take(4) },
+                label = { Text(stringResource(R.string.warning_days)) },
+                supportingText = {
+                    Text(stringResource(validation.reminderDays.takeIf { attemptedSubmit } ?: R.string.warning_days_help))
+                },
+                isError = attemptedSubmit && validation.reminderDays != null,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                notes,
+                { notes = it.take(500) },
+                label = { Text(stringResource(R.string.notes)) },
+                minLines = 3,
+                isError = attemptedSubmit && validation.notes != null,
+                supportingText = validation.notes.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 
@@ -401,9 +569,16 @@ fun TrackEditorScreen(
         TrackDatePickerDialog(
             initialEpochDay = expiryEpochDay,
             onDismiss = { showExpiryPicker = false },
-            onSelected = { selected -> if (selected != null) expiryEpochDay = selected; showExpiryPicker = false },
+            onSelected = { selected -> if (selected != null) { expiryEpochDay = selected; expiryConfirmed = true }; showExpiryPicker = false },
         )
     }
+}
+
+private fun String.toDecimalInput(maxLength: Int): String {
+    var decimalSeen = false
+    return filter { character ->
+        character.isDigit() || (character == '.' && !decimalSeen.also { decimalSeen = true })
+    }.take(maxLength)
 }
 
 @Composable
@@ -624,4 +799,3 @@ fun TrackConfirmDialog(
         icon = if (destructive) ({ Icon(Icons.Default.Delete, contentDescription = null) }) else null,
     )
 }
-

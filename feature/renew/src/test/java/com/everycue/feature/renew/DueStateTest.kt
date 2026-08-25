@@ -26,4 +26,3 @@ class DueStateTest {
         assertEquals(DueState.UPCOMING, renewal(today + 31).dueState(today))
     }
 }
-

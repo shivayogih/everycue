@@ -24,4 +24,3 @@ class BackupFormatTest {
         assertEquals(source, json.decodeFromString<EveryCueBackup>(json.encodeToString(source)))
     }
 }
-

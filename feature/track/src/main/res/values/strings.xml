@@ -87,5 +87,28 @@
     <string name="delete_item_fallback">item</string>
     <string name="delete_item_message">This removes the item without recording a consumed or waste outcome.</string>
     <string name="track_generic_error">Track could not complete that action.</string>
+    <string name="error_product_name">Enter an item name between 2 and 80 characters.</string>
+    <string name="error_quantity">Enter a numeric quantity greater than 0.</string>
+    <string name="error_unit">Enter a valid unit using letters, such as kg or item.</string>
+    <string name="error_purchase_after_expiry">Purchase date cannot be after the expiry date.</string>
+    <string name="error_storage_location">Enter a valid storage location up to 100 characters.</string>
+    <string name="error_notes_length">Notes can use at most 500 characters.</string>
+    <string name="error_warning_days">Warning days must be a number from 0 to 3650.</string>
+    <string name="smart_add">Smart Add</string>
+    <string name="scan_barcode">Barcode</string>
+    <string name="scan_label">Scan label</string>
+    <string name="import_label_image">Import label image</string>
+    <string name="review_extracted_fields">Review every extracted field</string>
+    <string name="smart_add_source_barcode">Barcode captured on this device</string>
+    <string name="smart_add_source_camera">Label text recognized on this device</string>
+    <string name="smart_add_source_image">Image text recognized on this device</string>
+    <string name="smart_add_source_other">Suggested draft</string>
+    <string name="possible_duplicate">Possible duplicate: an active item already uses this barcode.</string>
+    <string name="clear_smart_add">Clear suggestions</string>
+    <string name="confirm_extracted_expiry">Confirm the extracted expiry date</string>
+    <string name="confirm_extracted_expiry_help">EveryCue will not save an OCR-derived date until you explicitly confirm or correct it.</string>
+    <string name="confirm_date">Confirm date</string>
+    <string name="smart_add_model_unavailable">On-device scanning is not ready. Try again after the model downloads, or enter the item manually.</string>
+    <string name="smart_add_image_unreadable">That image could not be read. Choose another image or enter the item manually.</string>
+    <string name="smart_add_no_result">No usable barcode or label text was found. You can still enter the item manually.</string>
 </resources>
-

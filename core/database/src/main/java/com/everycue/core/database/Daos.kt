@@ -102,4 +102,3 @@ interface RenewalDao {
     @Query("DELETE FROM renewals")
     suspend fun deleteAllRenewals()
 }
-

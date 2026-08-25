@@ -7,9 +7,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface PackIntent {
     data class CreateTrip(val draft: TripDraft) : PackIntent
@@ -35,10 +39,14 @@ sealed interface PackEffect {
 
 class PackViewModel(private val repository: PackStore) : ViewModel() {
     private val busy = MutableStateFlow(false)
+    private val packedOverrides = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    private val mutationMutex = Mutex()
     private val effectChannel = Channel<PackEffect>(Channel.BUFFERED)
     val effects = effectChannel.receiveAsFlow()
 
-    val state = combine(repository.data, busy) { data, isBusy -> PackUiState(data, isBusy) }
+    val state = combine(repository.data, busy, packedOverrides) { data, isBusy, overrides ->
+        PackUiState(data.withPackedOverrides(overrides), isBusy)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PackUiState())
 
     fun onIntent(intent: PackIntent) {
@@ -54,10 +62,10 @@ class PackViewModel(private val repository: PackStore) : ViewModel() {
                 repository.addItem(intent.tripId, intent.name, intent.category, intent.quantity)
                 effectChannel.send(PackEffect.ItemAdded)
             }
-            is PackIntent.SetPacked -> execute { repository.setPacked(intent.tripId, intent.itemId, intent.packed) }
-            is PackIntent.DeleteItem -> execute { repository.deleteItem(intent.tripId, intent.itemId) }
-            is PackIntent.MoveItem -> execute { repository.moveItem(intent.tripId, intent.itemId, intent.offset) }
-            is PackIntent.UnpackAll -> execute { repository.unpackAll(intent.tripId) }
+            is PackIntent.SetPacked -> setPacked(intent)
+            is PackIntent.DeleteItem -> execute(markBusy = false) { repository.deleteItem(intent.tripId, intent.itemId) }
+            is PackIntent.MoveItem -> execute(markBusy = false) { repository.moveItem(intent.tripId, intent.itemId, intent.offset) }
+            is PackIntent.UnpackAll -> execute(markBusy = false) { repository.unpackAll(intent.tripId) }
             is PackIntent.DeleteTrip -> execute {
                 repository.deleteTrip(intent.tripId)
                 effectChannel.send(PackEffect.TripDeleted)
@@ -72,11 +80,42 @@ class PackViewModel(private val repository: PackStore) : ViewModel() {
         }
     }
 
-    private fun execute(block: suspend () -> Unit) {
+    private fun setPacked(intent: PackIntent.SetPacked) {
+        packedOverrides.update { it + (intent.itemId to intent.packed) }
         viewModelScope.launch {
-            busy.value = true
-            runCatching { block() }.onFailure { effectChannel.send(PackEffect.ShowError(R.string.pack_generic_error)) }
-            busy.value = false
+            mutationMutex.withLock {
+                runCatching {
+                    repository.setPacked(intent.tripId, intent.itemId, intent.packed)
+                    repository.data.first { data ->
+                        data.trips
+                            .firstOrNull { it.id == intent.tripId }
+                            ?.items
+                            ?.firstOrNull { it.id == intent.itemId }
+                            ?.isPacked == intent.packed
+                    }
+                }.onFailure {
+                    effectChannel.send(PackEffect.ShowError(R.string.pack_generic_error))
+                }
+                packedOverrides.update { overrides ->
+                    if (overrides[intent.itemId] == intent.packed) overrides - intent.itemId else overrides
+                }
+            }
+        }
+    }
+
+    private fun execute(markBusy: Boolean = true, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            if (markBusy) busy.value = true
+            mutationMutex.withLock {
+                runCatching { block() }.onFailure { error ->
+                    effectChannel.send(
+                        PackEffect.ShowError(
+                            (error as? PackValidationException)?.messageResource ?: R.string.pack_generic_error,
+                        ),
+                    )
+                }
+            }
+            if (markBusy) busy.value = false
         }
     }
 
@@ -88,4 +127,3 @@ class PackViewModel(private val repository: PackStore) : ViewModel() {
         }
     }
 }
-

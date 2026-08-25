@@ -19,10 +19,7 @@ class TrackRepository(
     override val events: Flow<List<TrackEvent>> = dao.observeEvents().map { entities -> entities.map { it.toModel(cipher) } }
 
     override suspend fun save(draft: TrackDraft, itemId: String?): String {
-        require(draft.name.isNotBlank()) { "Item name is required." }
-        require(draft.unit.isNotBlank()) { "Unit is required." }
-        require(draft.quantity > 0) { "Quantity must be greater than zero." }
-        require(draft.reminderDays >= 0) { "Reminder days cannot be negative." }
+        draft.validate()
 
         val now = System.currentTimeMillis()
         val existing = if (itemId == null) null else dao.getItem(itemId)
@@ -42,6 +39,7 @@ class TrackRepository(
                 lifecycleStatus = "ACTIVE",
                 createdAtMillis = existing?.createdAtMillis ?: now,
                 updatedAtMillis = now,
+                barcode = draft.barcode?.let(cipher::encrypt),
             ),
         )
         return id
@@ -97,6 +95,7 @@ private fun TrackItemEntity.toModel(cipher: TextCipher) = TrackItem(
     reminderDays = reminderDays,
     createdAtMillis = createdAtMillis,
     updatedAtMillis = updatedAtMillis,
+    barcode = barcode?.let(cipher::decrypt),
 )
 
 private fun TrackEventEntity.toModel(cipher: TextCipher) = TrackEvent(

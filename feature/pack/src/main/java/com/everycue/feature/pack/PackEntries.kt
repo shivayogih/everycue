@@ -1,19 +1,20 @@
 package com.everycue.feature.pack
 
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.State
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.scene.DialogSceneStrategy
 import com.everycue.core.navigation.Navigator
 
 fun EntryProviderScope<NavKey>.packEntryBuilder(
-    data: PackData,
+    state: State<PackUiState>,
     viewModel: PackViewModel,
     navigator: Navigator,
 ) {
     entry<PackTripsRoute> {
         TripsScreen(
-            trips = data.trips,
+            trips = state.value.data.trips,
             onTripClick = { navigator.navigate(PackTripDetailRoute(it)) },
             onCreateTrip = { navigator.navigate(CreatePackTripRoute()) },
             onTemplates = { navigator.navigate(PackTemplatesRoute) },
@@ -29,7 +30,7 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
         )
     }
     entry<EditPackTripRoute> { route ->
-        val trip = data.trips.firstOrNull { it.id == route.tripId }
+        val trip = state.value.data.trips.firstOrNull { it.id == route.tripId }
         CreateTripScreen(
             templateId = null,
             existing = trip,
@@ -38,11 +39,13 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
         )
     }
     entry<PackTripDetailRoute> { route ->
-        val trip = data.trips.firstOrNull { it.id == route.tripId }
+        val trip = state.value.data.trips.firstOrNull { it.id == route.tripId }
         TripDetailScreen(
             trip = trip,
             onBack = { navigator.goBack() },
-            onAddItem = { navigator.navigate(AddPackItemDialogRoute(route.tripId)) },
+            onAddItem = { name, category, quantity ->
+                viewModel.onIntent(PackIntent.AddItem(route.tripId, name, category, quantity))
+            },
             onEditTrip = { navigator.navigate(EditPackTripRoute(route.tripId)) },
             onTogglePacked = { item, packed -> viewModel.onIntent(PackIntent.SetPacked(route.tripId, item.id, packed)) },
             onDeleteItem = { item -> viewModel.onIntent(PackIntent.DeleteItem(route.tripId, item.id)) },
@@ -71,10 +74,11 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
     entry<AddPackItemDialogRoute>(
         metadata = DialogSceneStrategy.dialog(DialogProperties()),
     ) { route ->
-        AddItemDialogScreen(
+        AddItemBottomSheetScreen(
             onDismiss = { navigator.goBack() },
             onAdd = { name, category, quantity ->
                 viewModel.onIntent(PackIntent.AddItem(route.tripId, name, category, quantity))
+                navigator.goBack()
             },
         )
     }
@@ -90,4 +94,3 @@ fun EntryProviderScope<NavKey>.packEntryBuilder(
         )
     }
 }
-

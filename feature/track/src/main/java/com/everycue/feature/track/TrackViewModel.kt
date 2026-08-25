@@ -3,6 +3,9 @@ package com.everycue.feature.track
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.everycue.core.extraction.ExtractionSourceType
+import com.everycue.core.extraction.SmartAddDraft
+import com.everycue.core.extraction.SmartAddTextExtractor
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +18,13 @@ sealed interface TrackIntent {
     data class Save(val draft: TrackDraft, val itemId: String?) : TrackIntent
     data class MarkOutcome(val itemId: String, val outcome: TrackOutcome) : TrackIntent
     data class Delete(val itemId: String) : TrackIntent
+    data class ApplyRecognizedText(val text: String, val sourceType: ExtractionSourceType) : TrackIntent
+    data class ApplyBarcode(val value: String) : TrackIntent
+    data object ClearSmartAdd : TrackIntent
+    data class SmartAddFailed(val failure: SmartAddFailure) : TrackIntent
 }
+
+enum class SmartAddFailure { CANCELLED, MODEL_UNAVAILABLE, IMAGE_UNREADABLE, NO_RESULT }
 
 sealed interface TrackEffect {
     data class Saved(val itemId: String, val wasEditing: Boolean) : TrackEffect
@@ -26,17 +35,19 @@ sealed interface TrackEffect {
 
 class TrackViewModel(private val repository: TrackStore) : ViewModel() {
     private val busy = MutableStateFlow(false)
+    private val smartAddDraft = MutableStateFlow<SmartAddDraft?>(null)
     private val effectChannel = Channel<TrackEffect>(Channel.BUFFERED)
     val effects = effectChannel.receiveAsFlow()
 
-    val state = combine(repository.items, repository.events, busy) { items, events, isBusy ->
-        TrackUiState(items = items, events = events, isBusy = isBusy)
+    val state = combine(repository.items, repository.events, busy, smartAddDraft) { items, events, isBusy, draft ->
+        TrackUiState(items = items, events = events, isBusy = isBusy, smartAddDraft = draft)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TrackUiState())
 
     fun onIntent(intent: TrackIntent) {
         when (intent) {
             is TrackIntent.Save -> execute {
                 val id = repository.save(intent.draft, intent.itemId)
+                smartAddDraft.value = null
                 effectChannel.send(TrackEffect.Saved(id, intent.itemId != null))
             }
             is TrackIntent.MarkOutcome -> execute {
@@ -47,13 +58,51 @@ class TrackViewModel(private val repository: TrackStore) : ViewModel() {
                 repository.delete(intent.itemId)
                 effectChannel.send(TrackEffect.Deleted)
             }
+            is TrackIntent.ApplyRecognizedText -> {
+                smartAddDraft.value = SmartAddTextExtractor.extract(
+                    text = intent.text,
+                    sourceType = intent.sourceType,
+                    token = System.nanoTime(),
+                )
+            }
+            is TrackIntent.ApplyBarcode -> {
+                val normalized = intent.value.trim()
+                val matches = state.value.items.filter { it.barcode == normalized }
+                val known = matches.firstOrNull()
+                smartAddDraft.value = SmartAddTextExtractor.fromBarcode(
+                    barcode = normalized,
+                    token = System.nanoTime(),
+                    knownName = known?.name,
+                    knownCategoryName = known?.category?.name,
+                    knownLocation = known?.storageLocation,
+                    duplicateIds = matches.map(TrackItem::id),
+                )
+            }
+            TrackIntent.ClearSmartAdd -> smartAddDraft.value = null
+            is TrackIntent.SmartAddFailed -> if (intent.failure != SmartAddFailure.CANCELLED) {
+                viewModelScope.launch {
+                    val message = when (intent.failure) {
+                        SmartAddFailure.MODEL_UNAVAILABLE -> R.string.smart_add_model_unavailable
+                        SmartAddFailure.IMAGE_UNREADABLE -> R.string.smart_add_image_unreadable
+                        SmartAddFailure.NO_RESULT -> R.string.smart_add_no_result
+                        SmartAddFailure.CANCELLED -> R.string.smart_add_no_result
+                    }
+                    effectChannel.send(TrackEffect.ShowError(message))
+                }
+            }
         }
     }
 
     private fun execute(block: suspend () -> Unit) {
         viewModelScope.launch {
             busy.value = true
-            runCatching { block() }.onFailure { effectChannel.send(TrackEffect.ShowError(R.string.track_generic_error)) }
+            runCatching { block() }.onFailure { error ->
+                effectChannel.send(
+                    TrackEffect.ShowError(
+                        (error as? TrackValidationException)?.messageResource ?: R.string.track_generic_error,
+                    ),
+                )
+            }
             busy.value = false
         }
     }
@@ -66,4 +115,3 @@ class TrackViewModel(private val repository: TrackStore) : ViewModel() {
         }
     }
 }
-

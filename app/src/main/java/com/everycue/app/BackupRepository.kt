@@ -11,6 +11,10 @@ import com.everycue.core.database.TrackItemEntity
 import com.everycue.core.security.TextCipher
 import com.everycue.feature.pack.PackData
 import com.everycue.feature.pack.PackStore
+import com.everycue.feature.renew.RenewalDraft
+import com.everycue.feature.renew.RenewalType
+import com.everycue.feature.track.TrackCategory
+import com.everycue.feature.track.TrackDraft
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -34,6 +38,7 @@ data class TrackItemBackup(
     val id: String, val name: String, val category: String, val quantity: Double, val unit: String,
     val purchaseEpochDay: Long?, val expiryEpochDay: Long, val storageLocation: String, val notes: String,
     val reminderDays: Int, val lifecycleStatus: String, val createdAtMillis: Long, val updatedAtMillis: Long,
+    val barcode: String? = null,
 )
 
 @Serializable
@@ -99,6 +104,7 @@ class BackupRepository(
         }
         require(payload.trackItems.distinctBy { it.id }.size == payload.trackItems.size) { "Backup contains duplicate Track IDs." }
         require(payload.renewals.distinctBy { it.id }.size == payload.renewals.size) { "Backup contains duplicate Renew IDs." }
+        payload.validateUserData()
 
         database.withTransaction {
             val trackDao = database.trackDao()
@@ -118,8 +124,41 @@ class BackupRepository(
     }
 }
 
-private fun TrackItemEntity.toBackup(cipher: TextCipher) = TrackItemBackup(id, cipher.decrypt(name), category, quantity, cipher.decrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.decrypt(storageLocation), cipher.decrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis)
-private fun TrackItemBackup.toEntity(cipher: TextCipher) = TrackItemEntity(id, cipher.encrypt(name), category, quantity, cipher.encrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.encrypt(storageLocation), cipher.encrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis)
+private fun EveryCueBackup.validateUserData() {
+    require(trackItems.size <= 50_000 && renewals.size <= 50_000 && pack.trips.size <= 10_000) {
+        "Backup contains more records than EveryCue supports."
+    }
+    trackItems.forEach { item ->
+        TrackDraft(
+            name = item.name,
+            category = runCatching { TrackCategory.valueOf(item.category) }.getOrElse { error("Invalid Track category.") },
+            quantity = item.quantity,
+            unit = item.unit,
+            purchaseEpochDay = item.purchaseEpochDay,
+            expiryEpochDay = item.expiryEpochDay,
+            storageLocation = item.storageLocation,
+            notes = item.notes,
+            reminderDays = item.reminderDays,
+            barcode = item.barcode,
+        ).validate()
+    }
+    renewals.forEach { item ->
+        RenewalDraft(
+            title = item.title,
+            type = runCatching { RenewalType.valueOf(item.type) }.getOrElse { error("Invalid renewal type.") },
+            dueEpochDay = item.dueEpochDay,
+            reminderDays = item.reminderDays,
+            provider = item.provider,
+            referenceNumber = item.referenceNumber,
+            notes = item.notes,
+        ).validate()
+    }
+    pack.validate()
+    profile?.validate()
+}
+
+private fun TrackItemEntity.toBackup(cipher: TextCipher) = TrackItemBackup(id, cipher.decrypt(name), category, quantity, cipher.decrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.decrypt(storageLocation), cipher.decrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis, barcode?.let(cipher::decrypt))
+private fun TrackItemBackup.toEntity(cipher: TextCipher) = TrackItemEntity(id, cipher.encrypt(name), category, quantity, cipher.encrypt(unit), purchaseEpochDay, expiryEpochDay, cipher.encrypt(storageLocation), cipher.encrypt(notes), reminderDays, lifecycleStatus, createdAtMillis, updatedAtMillis, barcode?.let(cipher::encrypt))
 private fun TrackEventEntity.toBackup(cipher: TextCipher) = TrackEventBackup(id, itemId, cipher.decrypt(itemNameSnapshot), outcome, quantity, cipher.decrypt(unit), timestampMillis, cipher.decrypt(notes))
 private fun TrackEventBackup.toEntity(cipher: TextCipher) = TrackEventEntity(id, itemId, cipher.encrypt(itemNameSnapshot), outcome, quantity, cipher.encrypt(unit), timestampMillis, cipher.encrypt(notes))
 private fun RenewalEntity.toBackup(cipher: TextCipher) = RenewalBackup(id, cipher.decrypt(title), type, dueEpochDay, reminderDays, cipher.decrypt(provider), cipher.decrypt(referenceNumber), cipher.decrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)

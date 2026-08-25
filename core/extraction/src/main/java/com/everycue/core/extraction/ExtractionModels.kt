@@ -80,3 +80,17 @@ data class RenewalExtractionDraft(
     val startDate: ExtractedDate? = null,
     val dueDate: ExtractedDate? = null,
 )
+
+data class SmartAddDraft(
+    val token: Long,
+    val sourceType: ExtractionSourceType,
+    val productName: ExtractedField<String>? = null,
+    val categoryName: ExtractedField<String>? = null,
+    val quantity: ExtractedField<Double>? = null,
+    val purchaseDate: ExtractedDate? = null,
+    val expiryDate: ExtractedDate? = null,
+    val storageLocation: ExtractedField<String>? = null,
+    val notes: ExtractedField<String>? = null,
+    val barcode: ExtractedField<String>? = null,
+    val possibleDuplicateIds: List<String> = emptyList(),
+)

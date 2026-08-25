@@ -8,4 +8,6 @@ Track and Renew records are stored in an app-private local Room database. Pack t
 
 Production builds apply local device-integrity checks and do not open organizer/profile data when common emulator, root, test-key, or system-modification signals are detected. They also block screenshots and non-system overlays. Development builds permit emulators and rooted development devices. These controls reduce exposure but cannot guarantee protection against an attacker who fully controls the operating system.
 
+Smart Add uses Google Play services code-scanner and text-recognition modules. Scanner/OCR processing runs on the device and EveryCue does not send recognized text, barcodes, or selected images to a developer-operated server. Google Play services may download the required on-device model/module. A label image is processed only after the user captures or selects it, OCR output remains an editable draft, and manual item entry remains available when scanning is unavailable. The final release Data safety review must verify these SDK behaviors against Google's then-current documentation.
+
 The shipped privacy policy and Google Play Data safety answers must be reviewed against the final release bundle and every included SDK before publication. This draft is not a hosted production privacy policy.

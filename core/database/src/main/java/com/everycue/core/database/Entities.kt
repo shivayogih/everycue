@@ -26,6 +26,7 @@ data class TrackItemEntity(
     val lifecycleStatus: String,
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
+    val barcode: String? = null,
 )
 
 @Entity(
@@ -75,4 +76,3 @@ data class RenewalEventEntity(
     val renewedAtMillis: Long,
     val notes: String,
 )
-

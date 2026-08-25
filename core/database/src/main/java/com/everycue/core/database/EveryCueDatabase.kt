@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -12,7 +14,7 @@ import androidx.room.RoomDatabase
         RenewalEntity::class,
         RenewalEventEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class EveryCueDatabase : RoomDatabase() {
@@ -28,8 +30,13 @@ abstract class EveryCueDatabase : RoomDatabase() {
                 context.applicationContext,
                 EveryCueDatabase::class.java,
                 "everycue.db",
-            ).build().also { instance = it }
+            ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+        }
+
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE track_items ADD COLUMN barcode TEXT DEFAULT NULL")
+            }
         }
     }
 }
-

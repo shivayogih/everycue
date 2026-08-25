@@ -25,7 +25,7 @@ enum class ThemePreference { SYSTEM, LIGHT, DARK }
 @Serializable
 data class AppSettings(
     val theme: ThemePreference = ThemePreference.SYSTEM,
-    val dynamicColor: Boolean = true,
+    val dynamicColor: Boolean = false,
     val remindersEnabled: Boolean = false,
     val reminderHour: Int = 9,
     val reminderMinute: Int = 0,
@@ -55,7 +55,7 @@ class SettingsRepository(context: Context) : SettingsStore {
                 theme = preferences[THEME]
                     ?.let { runCatching { ThemePreference.valueOf(it) }.getOrNull() }
                     ?: ThemePreference.SYSTEM,
-                dynamicColor = preferences[DYNAMIC_COLOR] ?: true,
+                dynamicColor = preferences[DYNAMIC_COLOR] ?: false,
                 remindersEnabled = preferences[REMINDERS_ENABLED] ?: false,
                 reminderHour = (preferences[REMINDER_HOUR] ?: 9).coerceIn(0, 23),
                 reminderMinute = (preferences[REMINDER_MINUTE] ?: 0).coerceIn(0, 59),

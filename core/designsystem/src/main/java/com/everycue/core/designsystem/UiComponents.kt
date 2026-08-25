@@ -24,8 +24,9 @@ fun MetricCard(
     ElevatedCard(
         modifier = modifier,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = MaterialTheme.colorScheme.surface,
         ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),

@@ -2,7 +2,9 @@ package com.everycue.app
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,8 +12,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventRepeat
@@ -26,11 +32,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,8 +82,13 @@ fun HomeScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = {
                     Column {
                         Text(stringResource(R.string.home_title), fontWeight = FontWeight.Bold)
@@ -100,48 +114,69 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .background(
                             Brush.linearGradient(
-                                listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.tertiaryContainer),
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+                                ),
                             ),
                             MaterialTheme.shapes.extraLarge,
                         )
                         .padding(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text(stringResource(R.string.home_overview_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Icon(
+                        Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Text(
+                        stringResource(R.string.home_overview_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
                     Text(
                         stringResource(R.string.home_overview_summary, track.expiredCount + track.expiringSoonCount, unpacked, renew.overdueCount + renew.dueSoonCount),
                         style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f),
                     )
+                    Text(
+                        stringResource(R.string.home_features),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        item {
+                            FeatureCard(
+                                title = stringResource(R.string.nav_track),
+                                description = stringResource(R.string.home_track_description),
+                                status = stringResource(R.string.home_track_status, track.items.size, track.expiredCount + track.expiringSoonCount),
+                                icon = Icons.Default.Inventory2,
+                                accent = MaterialTheme.colorScheme.primary,
+                                onClick = onTrack,
+                            )
+                        }
+                        item {
+                            FeatureCard(
+                                title = stringResource(R.string.nav_pack),
+                                description = stringResource(R.string.home_pack_description),
+                                status = stringResource(R.string.home_pack_status, pack.trips.size, unpacked),
+                                icon = Icons.Default.Luggage,
+                                accent = MaterialTheme.colorScheme.tertiary,
+                                onClick = onPack,
+                            )
+                        }
+                        item {
+                            FeatureCard(
+                                title = stringResource(R.string.nav_renew),
+                                description = stringResource(R.string.home_renew_description),
+                                status = stringResource(R.string.home_renew_status, renew.renewals.size, renew.overdueCount + renew.dueSoonCount),
+                                icon = Icons.Default.EventRepeat,
+                                accent = MaterialTheme.colorScheme.secondary,
+                                onClick = onRenew,
+                            )
+                        }
+                    }
                 }
-            }
-            item { Text(stringResource(R.string.home_features), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            item {
-                FeatureCard(
-                    title = stringResource(R.string.nav_track),
-                    description = stringResource(R.string.home_track_description),
-                    status = stringResource(R.string.home_track_status, track.items.size, track.expiredCount + track.expiringSoonCount),
-                    icon = Icons.Default.Inventory2,
-                    onClick = onTrack,
-                )
-            }
-            item {
-                FeatureCard(
-                    title = stringResource(R.string.nav_pack),
-                    description = stringResource(R.string.home_pack_description),
-                    status = stringResource(R.string.home_pack_status, pack.trips.size, unpacked),
-                    icon = Icons.Default.Luggage,
-                    onClick = onPack,
-                )
-            }
-            item {
-                FeatureCard(
-                    title = stringResource(R.string.nav_renew),
-                    description = stringResource(R.string.home_renew_description),
-                    status = stringResource(R.string.home_renew_status, renew.renewals.size, renew.overdueCount + renew.dueSoonCount),
-                    icon = Icons.Default.EventRepeat,
-                    onClick = onRenew,
-                )
             }
             item {
                 Spacer(Modifier.height(2.dp))
@@ -188,28 +223,53 @@ fun HomeScreen(
 }
 
 @Composable
-private fun FeatureCard(title: String, description: String, status: String, icon: ImageVector, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth().animateContentSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+private fun FeatureCard(
+    title: String,
+    description: String,
+    status: String,
+    icon: ImageVector,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.width(164.dp).heightIn(min = 190.dp).animateContentSize(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(status, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Box(
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
             }
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            Text(status, style = MaterialTheme.typography.labelMedium, color = accent)
         }
     }
 }
 
 @Composable
 private fun AttentionCard(title: String, detail: String, icon: ImageVector, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp, pressedElevation = 0.dp),
+    ) {
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+            Box(
+                modifier = Modifier.size(42.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            }
             Column {
                 Text(title, fontWeight = FontWeight.SemiBold)
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

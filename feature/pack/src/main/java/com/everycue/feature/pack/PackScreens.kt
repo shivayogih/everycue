@@ -1,6 +1,9 @@
 package com.everycue.feature.pack
 
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -52,12 +56,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.everycue.feature.pack.PackingCategory
@@ -68,6 +74,8 @@ import com.everycue.feature.pack.TripDraft
 import com.everycue.feature.pack.asDateLabel
 import com.everycue.feature.pack.dateRangeLabel
 import com.everycue.feature.pack.packingSummary
+import com.everycue.core.designsystem.DismissKeyboardOnScroll
+import com.everycue.core.designsystem.rememberKeyboardDismissAction
 
 @Composable
 private fun Trip.localizedPackingSummary(): String {
@@ -91,7 +99,12 @@ fun TripsScreen(
     onTemplates: () -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    val visibleTrips = trips.filter { query.isBlank() || it.name.contains(query, true) || it.destination.contains(query, true) }
+    val listState = rememberLazyListState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    DismissKeyboardOnScroll(listState)
+    val visibleTrips = remember(trips, query) {
+        trips.filter { query.isBlank() || it.name.contains(query, true) || it.destination.contains(query, true) }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -129,6 +142,7 @@ fun TripsScreen(
             val total = trips.sumOf(Trip::totalCount)
             val packed = trips.sumOf(Trip::packedCount)
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
@@ -148,6 +162,8 @@ fun TripsScreen(
                         onValueChange = { query = it },
                         label = { Text(stringResource(R.string.search_trips)) },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { dismissKeyboard() }),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -284,6 +300,17 @@ fun CreateTripScreen(
     var endDate by rememberSaveable(existing?.id) { mutableStateOf(existing?.endDateMillis) }
     var showStartPicker by rememberSaveable { mutableStateOf(false) }
     var showEndPicker by rememberSaveable { mutableStateOf(false) }
+    var attemptedSubmit by rememberSaveable(existing?.id) { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    val candidate = TripDraft(
+        name = name,
+        destination = destination,
+        startDateMillis = startDate,
+        endDateMillis = endDate,
+        templateId = templateId,
+    )
+    val validation = candidate.validationErrors()
 
     Scaffold(
         topBar = {
@@ -300,17 +327,12 @@ fun CreateTripScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick = {
-                        onCreate(
-                            TripDraft(
-                                name = name,
-                                destination = destination,
-                                startDateMillis = startDate,
-                                endDateMillis = endDate,
-                                templateId = templateId,
-                            ),
-                        )
+                        attemptedSubmit = true
+                        if (validation.isValid) {
+                            dismissKeyboard()
+                            onCreate(candidate)
+                        }
                     },
-                    enabled = name.isNotBlank() && (endDate == null || startDate == null || endDate!! >= startDate!!),
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                 ) {
                     Text(stringResource(if (existing == null) R.string.create_packing_list else R.string.save_trip))
@@ -319,6 +341,7 @@ fun CreateTripScreen(
         },
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -347,20 +370,27 @@ fun CreateTripScreen(
             item {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { name = it.take(80) },
                     label = { Text(stringResource(R.string.trip_name)) },
                     placeholder = { Text(stringResource(R.string.trip_name_hint)) },
                     singleLine = true,
+                    isError = attemptedSubmit && validation.name != null,
+                    supportingText = validation.name.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
                 OutlinedTextField(
                     value = destination,
-                    onValueChange = { destination = it },
+                    onValueChange = { destination = it.take(100) },
                     label = { Text(stringResource(R.string.destination)) },
                     placeholder = { Text(stringResource(R.string.optional)) },
                     singleLine = true,
+                    isError = attemptedSubmit && validation.destination != null,
+                    supportingText = validation.destination.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { dismissKeyboard() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -372,21 +402,27 @@ fun CreateTripScreen(
                     DateField(
                         label = stringResource(R.string.starts),
                         value = startDate.asDateLabel(stringResource(R.string.not_selected)),
-                        onClick = { showStartPicker = true },
+                        onClick = {
+                            dismissKeyboard()
+                            showStartPicker = true
+                        },
                         modifier = Modifier.weight(1f),
                     )
                     DateField(
                         label = stringResource(R.string.ends),
                         value = endDate.asDateLabel(stringResource(R.string.not_selected)),
-                        onClick = { showEndPicker = true },
+                        onClick = {
+                            dismissKeyboard()
+                            showEndPicker = true
+                        },
                         modifier = Modifier.weight(1f),
                     )
                 }
             }
-            if (endDate != null && startDate != null && endDate!! < startDate!!) {
+            if (validation.dates != null && (attemptedSubmit || (endDate != null && startDate != null))) {
                 item {
                     Text(
-                        stringResource(R.string.end_date_error),
+                        stringResource(validation.dates),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -448,7 +484,7 @@ private fun DateField(
 fun TripDetailScreen(
     trip: Trip?,
     onBack: () -> Unit,
-    onAddItem: () -> Unit,
+    onAddItem: (String, PackingCategory, Int) -> Unit,
     onEditTrip: () -> Unit,
     onTogglePacked: (PackingItem, Boolean) -> Unit,
     onDeleteItem: (PackingItem) -> Unit,
@@ -461,6 +497,11 @@ fun TripDetailScreen(
         return
     }
     var query by rememberSaveable(trip.id) { mutableStateOf("") }
+    var showAddItemSheet by rememberSaveable(trip.id) { mutableStateOf(false) }
+    val sections = remember(trip.items, query) { buildPackingSections(trip.items, query) }
+    val listState = rememberLazyListState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    DismissKeyboardOnScroll(listState)
 
     Scaffold(
         topBar = {
@@ -499,13 +540,14 @@ fun TripDetailScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = onAddItem,
+                onClick = { showAddItemSheet = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.add_item)) },
             )
         },
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -519,6 +561,8 @@ fun TripDetailScreen(
                     onValueChange = { query = it },
                     label = { Text(stringResource(R.string.search_packing_items)) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { dismissKeyboard() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -534,43 +578,60 @@ fun TripDetailScreen(
                             Spacer(Modifier.height(8.dp))
                             Text(stringResource(R.string.nothing_to_pack_body))
                             Spacer(Modifier.height(12.dp))
-                            FilledTonalButton(onClick = onAddItem) { Text(stringResource(R.string.add_item)) }
+                            FilledTonalButton(onClick = { showAddItemSheet = true }) { Text(stringResource(R.string.add_item)) }
                         }
                     }
                 }
             } else {
-                PackingCategory.entries.forEach { category ->
-                    val categoryItems = trip.items
-                        .filter { it.category == category }
-                        .filter { query.isBlank() || it.name.contains(query, true) }
-                        .sortedWith(compareBy<PackingItem> { it.isPacked }.thenBy { it.position })
-                    if (categoryItems.isNotEmpty()) {
-                        item(key = "header-${category.name}") {
+                sections.forEach { section ->
+                        item(key = "header-${section.category.name}") {
                             Text(
-                                "${category.emoji} ${category.displayName()}",
+                                "${section.category.emoji} ${section.category.displayName()}",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(top = 8.dp),
                             )
                         }
-                        items(categoryItems, key = PackingItem::id) { item ->
+                        items(section.items, key = PackingItem::id) { item ->
                             PackingItemRow(
                                 item = item,
-                                onCheckedChange = { checked -> onTogglePacked(item, checked) },
-                                onDelete = { onDeleteItem(item) },
-                                onMoveUp = { onMoveItem(item, -1) },
-                                onMoveDown = { onMoveItem(item, 1) },
+                                modifier = Modifier.animateItem(),
+                                onCheckedChange = { checked ->
+                                    dismissKeyboard()
+                                    onTogglePacked(item, checked)
+                                },
+                                onDelete = {
+                                    dismissKeyboard()
+                                    onDeleteItem(item)
+                                },
+                                onMoveUp = {
+                                    dismissKeyboard()
+                                    onMoveItem(item, -1)
+                                },
+                                onMoveDown = {
+                                    dismissKeyboard()
+                                    onMoveItem(item, 1)
+                                },
                             )
                         }
-                    }
                 }
             }
         }
+    }
+    if (showAddItemSheet) {
+        AddItemBottomSheetScreen(
+            onDismiss = { showAddItemSheet = false },
+            onAdd = { name, category, quantity ->
+                onAddItem(name, category, quantity)
+                showAddItemSheet = false
+            },
+        )
     }
 }
 
 @Composable
 private fun TripProgressHeader(trip: Trip) {
+    val animatedProgress by animateFloatAsState(targetValue = trip.progress, label = "packing-progress")
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(
             containerColor = if (trip.items.isNotEmpty() && trip.packedCount == trip.totalCount) {
@@ -590,7 +651,7 @@ private fun TripProgressHeader(trip: Trip) {
                 Text("${(trip.progress * 100).toInt()}%", style = MaterialTheme.typography.titleLarge)
             }
             LinearProgressIndicator(
-                progress = { trip.progress },
+                progress = { animatedProgress },
                 modifier = Modifier.fillMaxWidth().height(8.dp),
             )
         }
@@ -600,12 +661,13 @@ private fun TripProgressHeader(trip: Trip) {
 @Composable
 private fun PackingItemRow(
     item: PackingItem,
+    modifier: Modifier = Modifier,
     onCheckedChange: (Boolean) -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
 ) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -657,4 +719,3 @@ private fun MissingTripScreen(onBack: () -> Unit) {
         }
     }
 }
-

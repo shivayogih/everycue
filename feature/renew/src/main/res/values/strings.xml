@@ -11,5 +11,5 @@
     <string name="delete_renewal_title">Delete %1$s?</string><string name="renewal_fallback">renewal</string><string name="delete_renewal_body">This removes the due date. Existing renewal-history entries remain local.</string>
     <string name="type_document">Document</string><string name="type_insurance">Insurance</string><string name="type_warranty">Warranty</string><string name="type_membership">Membership</string><string name="type_subscription">Subscription</string><string name="type_certificate">Certificate</string><string name="type_other">Other</string>
     <string name="overdue_days">Overdue by %1$d days</string><string name="overdue_one_day">Overdue by 1 day</string><string name="due_today">Due today</string><string name="due_tomorrow">Due tomorrow</string><string name="due_in_days">Due in %1$d days</string>
+    <string name="error_renewal_title">Enter a title between 2 and 100 characters.</string><string name="error_reminder_days">Reminder days must be a number from 0 to 3650.</string><string name="error_provider">Enter a valid provider up to 100 characters.</string><string name="error_reference">Use letters, numbers, spaces, /, -, or _ in the reference.</string><string name="error_notes_length">Notes can use at most 500 characters.</string><string name="error_new_due_date">Choose a new due date in the future.</string>
 </resources>
-

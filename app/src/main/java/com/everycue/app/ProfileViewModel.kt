@@ -67,4 +67,3 @@ class ProfileViewModel(private val repository: UserProfileStore) : ViewModel() {
         }
     }
 }
-

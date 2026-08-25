@@ -38,11 +38,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +70,7 @@ fun SettingsScreen(
     val busy = state.isBusy
     val context = LocalContext.current
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
+    var showTimePicker by rememberSaveable { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) onIntent(SettingsIntent.SetReminders(true)) }
     val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { it?.let { uri -> onIntent(SettingsIntent.Export(uri)) } }
     val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { if (it != null) pendingImport = it }
@@ -77,6 +81,17 @@ fun SettingsScreen(
             text = { Text(stringResource(R.string.restore_backup_message)) },
             confirmButton = { TextButton(onClick = { onIntent(SettingsIntent.Import(uri)); pendingImport = null }) { Text(stringResource(R.string.restore)) } },
             dismissButton = { TextButton(onClick = { pendingImport = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (showTimePicker) {
+        ReminderTimePickerDialog(
+            initialHour = settings.reminderHour,
+            initialMinute = settings.reminderMinute,
+            onDismiss = { showTimePicker = false },
+            onSelected = { hour, minute ->
+                onIntent(SettingsIntent.SetReminderTime(hour, minute))
+                showTimePicker = false
+            },
         )
     }
 
@@ -130,7 +145,7 @@ fun SettingsScreen(
                     Column(Modifier.padding(vertical = 8.dp)) {
                         ListItem(
                             headlineContent = { Text(stringResource(R.string.daily_reminders)) },
-                            supportingContent = { Text(stringResource(R.string.daily_reminders_summary, stringResource(R.string.hour_format, settings.reminderHour.toString().padStart(2, '0')))) },
+                            supportingContent = { Text(stringResource(R.string.daily_reminders_summary, settings.reminderTimeLabel())) },
                             leadingContent = { Icon(Icons.Default.Notifications, null) },
                             trailingContent = {
                                 Switch(checked = settings.remindersEnabled, onCheckedChange = { enabled ->
@@ -143,12 +158,13 @@ fun SettingsScreen(
                         if (settings.remindersEnabled) {
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                OutlinedButton(onClick = { onIntent(SettingsIntent.SetReminderHour((settings.reminderHour + 23) % 24)) }) { Text(stringResource(R.string.earlier)) }
-                                Text(stringResource(R.string.hour_format, settings.reminderHour.toString().padStart(2, '0')), fontWeight = FontWeight.Bold)
-                                OutlinedButton(onClick = { onIntent(SettingsIntent.SetReminderHour((settings.reminderHour + 1) % 24)) }) { Text(stringResource(R.string.later)) }
+                                Text(settings.reminderTimeLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                OutlinedButton(onClick = { showTimePicker = true }) {
+                                    Text(stringResource(R.string.change_reminder_time))
+                                }
                             }
                         }
                     }
@@ -186,6 +202,32 @@ fun SettingsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onSelected: (Int, Int) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour.coerceIn(0, 23),
+        initialMinute = initialMinute.coerceIn(0, 59),
+        is24Hour = false,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.choose_reminder_time)) },
+        text = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = { onSelected(state.hour, state.minute) }) {
+                Text(stringResource(R.string.select))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
 @Composable
 private fun SummaryCard(trackCount: Int, tripCount: Int, renewalCount: Int) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -211,4 +253,3 @@ fun AboutScreen(onBack: () -> Unit) {
         }
     }
 }
-

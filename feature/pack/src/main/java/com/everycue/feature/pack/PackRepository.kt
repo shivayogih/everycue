@@ -39,6 +39,7 @@ class PackRepository(context: Context, private val cipher: TextCipher) : PackSto
         .map(::decode)
 
     override suspend fun createTrip(draft: TripDraft): Long {
+        draft.validate()
         val tripId = newId()
         val templateItems = TemplateCatalog.find(draft.templateId)
             ?.items
@@ -71,6 +72,7 @@ class PackRepository(context: Context, private val cipher: TextCipher) : PackSto
     }
 
     override suspend fun updateTrip(tripId: Long, draft: TripDraft) = mutateTrips { trips ->
+        draft.validate()
         trips.map { trip ->
             if (trip.id == tripId) trip.copy(
                 name = draft.name.trim(),
@@ -87,6 +89,7 @@ class PackRepository(context: Context, private val cipher: TextCipher) : PackSto
         category: PackingCategory,
         quantity: Int,
     ) = mutateTrips { trips ->
+        validatePackingItem(name, quantity)
         trips.map { trip ->
             if (trip.id != tripId) return@map trip
             val nextId = newId()
@@ -178,6 +181,7 @@ class PackRepository(context: Context, private val cipher: TextCipher) : PackSto
     override suspend fun snapshot(): PackData = data.first()
 
     override suspend fun replaceAll(restored: PackData) {
+        restored.validate()
         mutate { restored }
     }
 

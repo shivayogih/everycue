@@ -31,4 +31,3 @@
         <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="@string/widget_renew_label" android:textColor="#FFE4F1EA" android:textSize="12sp" />
     </LinearLayout>
 </LinearLayout>
-

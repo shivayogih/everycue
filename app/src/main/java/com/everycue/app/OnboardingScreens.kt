@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,7 +52,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.everycue.core.designsystem.rememberKeyboardDismissAction
 import kotlinx.coroutines.launch
 
 private data class OnboardingPage(
@@ -175,34 +179,102 @@ private fun ProfileForm(
     var email by rememberSaveable(existing) { mutableStateOf(existing?.email.orEmpty()) }
     var address by rememberSaveable(existing) { mutableStateOf(existing?.address.orEmpty()) }
     var pincode by rememberSaveable(existing) { mutableStateOf(existing?.pincode.orEmpty()) }
+    var attemptedSubmit by rememberSaveable(existing) { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
+    val candidate = LocalProfile(firstName, lastName, countryCode, mobile, email, address, pincode)
+    val validation = candidate.validationErrors()
 
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = modifier.fillMaxSize().imePadding().verticalScroll(scrollState).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(stringResource(if (existing == null) R.string.profile_create_title else R.string.profile_edit_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.profile_privacy_summary), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(firstName, { firstName = it }, label = { Text(stringResource(R.string.first_name)) }, singleLine = true, modifier = Modifier.weight(1f))
-            OutlinedTextField(lastName, { lastName = it }, label = { Text(stringResource(R.string.last_name)) }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(
+                firstName,
+                { firstName = it.take(50).filter(::isProfileNameCharacter) },
+                label = { Text(stringResource(R.string.first_name)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.firstName != null,
+                supportingText = validation.firstName.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                lastName,
+                { lastName = it.take(50).filter(::isProfileNameCharacter) },
+                label = { Text(stringResource(R.string.last_name)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.lastName != null,
+                supportingText = validation.lastName.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f),
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(countryCode, { countryCode = it.filter { char -> char == '+' || char.isDigit() }.take(5) }, label = { Text(stringResource(R.string.country_code)) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.width(104.dp))
-            OutlinedTextField(mobile, { mobile = it.filter(Char::isDigit).take(15) }, label = { Text(stringResource(R.string.mobile_number)) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.weight(1f))
+            OutlinedTextField(
+                countryCode,
+                { value -> countryCode = "+" + value.filter(Char::isDigit).take(3) },
+                label = { Text(stringResource(R.string.country_code)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.countryCode != null,
+                supportingText = validation.countryCode.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                modifier = Modifier.width(120.dp),
+            )
+            OutlinedTextField(
+                mobile,
+                { mobile = it.filter(Char::isDigit).take(15) },
+                label = { Text(stringResource(R.string.mobile_number)) },
+                singleLine = true,
+                isError = attemptedSubmit && validation.mobile != null,
+                supportingText = validation.mobile.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f),
+            )
         }
-        OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.email_id)) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            email,
+            { email = it.filterNot(Char::isWhitespace).take(254) },
+            label = { Text(stringResource(R.string.email_id)) },
+            singleLine = true,
+            isError = attemptedSubmit && validation.email != null,
+            supportingText = validation.email.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            modifier = Modifier.fillMaxWidth(),
+        )
         OutlinedTextField(
             address,
-            { value -> if (value.lines().size <= 5) address = value },
+            { value -> if (value.lines().size <= 5) address = value.take(300) },
             label = { Text(stringResource(R.string.address_five_lines)) },
             minLines = 3,
             maxLines = 5,
+            isError = attemptedSubmit && validation.address != null,
+            supportingText = validation.address.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
             modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedTextField(pincode, { pincode = it.take(12) }, label = { Text(stringResource(R.string.pincode)) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            pincode,
+            { pincode = it.filter(Char::isDigit).take(10) },
+            label = { Text(stringResource(R.string.pincode)) },
+            singleLine = true,
+            isError = attemptedSubmit && validation.pincode != null,
+            supportingText = validation.pincode.takeIf { attemptedSubmit }?.let { error -> { Text(stringResource(error)) } },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { dismissKeyboard() }),
+            modifier = Modifier.fillMaxWidth(),
+        )
         error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         Button(
-            onClick = { onSave(LocalProfile(firstName, lastName, countryCode, mobile, email, address, pincode)) },
+            onClick = {
+                attemptedSubmit = true
+                if (validation.isValid) {
+                    dismissKeyboard()
+                    onSave(candidate)
+                }
+            },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) { if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) else Text(submitLabel) }
@@ -215,3 +287,5 @@ private fun ProfileForm(
     }
 }
 
+private fun isProfileNameCharacter(character: Char): Boolean =
+    character.isLetter() || character.isWhitespace() || character in setOf('.', '\'', '-')

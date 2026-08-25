@@ -18,4 +18,3 @@ interface PackStore {
     suspend fun snapshot(): PackData
     suspend fun replaceAll(restored: PackData)
 }
-

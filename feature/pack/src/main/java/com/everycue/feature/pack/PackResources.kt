@@ -15,4 +15,3 @@ fun PackingCategory.displayName(): String = stringResource(
         PackingCategory.EXTRAS -> R.string.category_extras
     },
 )
-

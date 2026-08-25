@@ -31,15 +31,33 @@ data class LocalProfile(
 ) {
     val fullName: String get() = "$firstName $lastName".trim()
 
+    fun validationErrors(): ProfileValidationErrors {
+        val namePattern = Regex("^[\\p{L}][\\p{L}\\p{M} .'-]{1,49}$")
+        val normalizedMobile = mobileNumber.trim()
+        return ProfileValidationErrors(
+            firstName = if (firstName.trim().matches(namePattern)) null else R.string.error_first_name,
+            lastName = if (lastName.trim().matches(namePattern)) null else R.string.error_last_name,
+            countryCode = if (countryCode.trim().matches(Regex("\\+[1-9][0-9]{0,2}"))) null else R.string.error_country_code,
+            mobile = if (
+                normalizedMobile.matches(Regex("[0-9]{7,15}")) &&
+                normalizedMobile.toSet().size > 1
+            ) null else R.string.error_mobile,
+            email = if (
+                email.length <= 254 && email.trim().matches(Regex("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"))
+            ) null else R.string.error_email,
+            address = when {
+                address.trim().length < 8 -> R.string.error_address_required
+                address.length > 300 -> R.string.error_address_length
+                address.lines().size > 5 -> R.string.error_address_lines
+                address.none(Char::isLetterOrDigit) -> R.string.error_address_required
+                else -> null
+            },
+            pincode = if (pincode.trim().matches(Regex("[0-9]{4,10}"))) null else R.string.error_pincode,
+        )
+    }
+
     fun validate() {
-        if (firstName.isBlank()) throw ProfileValidationException(R.string.error_first_name)
-        if (lastName.isBlank()) throw ProfileValidationException(R.string.error_last_name)
-        if (!countryCode.matches(Regex("\\+[0-9]{1,4}"))) throw ProfileValidationException(R.string.error_country_code)
-        if (!mobileNumber.matches(Regex("[0-9]{6,15}"))) throw ProfileValidationException(R.string.error_mobile)
-        if (!email.matches(Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"))) throw ProfileValidationException(R.string.error_email)
-        if (address.isBlank()) throw ProfileValidationException(R.string.error_address_required)
-        if (address.lines().size > 5) throw ProfileValidationException(R.string.error_address_lines)
-        if (pincode.isBlank()) throw ProfileValidationException(R.string.error_pincode)
+        validationErrors().firstError()?.let { throw ProfileValidationException(it) }
     }
 
     fun asShareText(phone: String, emailLabel: String, addressLabel: String, pincodeLabel: String): String = buildString {
@@ -50,6 +68,19 @@ data class LocalProfile(
         appendLine(address.trim())
         append(pincodeLabel)
     }
+}
+
+data class ProfileValidationErrors(
+    @StringRes val firstName: Int? = null,
+    @StringRes val lastName: Int? = null,
+    @StringRes val countryCode: Int? = null,
+    @StringRes val mobile: Int? = null,
+    @StringRes val email: Int? = null,
+    @StringRes val address: Int? = null,
+    @StringRes val pincode: Int? = null,
+) {
+    val isValid: Boolean get() = firstError() == null
+    fun firstError(): Int? = firstName ?: lastName ?: countryCode ?: mobile ?: email ?: address ?: pincode
 }
 
 class ProfileValidationException(@StringRes val messageResource: Int) : IllegalArgumentException()
@@ -88,6 +119,7 @@ class LocalUserProfileRepository(context: Context, private val cipher: TextCiphe
     }
 
     override suspend fun replace(value: LocalProfile?) {
+        value?.validate()
         appContext.profileDataStore.edit { preferences ->
             if (value == null) preferences.remove(profileKey)
             else preferences[profileKey] = cipher.encrypt(json.encodeToString(value))

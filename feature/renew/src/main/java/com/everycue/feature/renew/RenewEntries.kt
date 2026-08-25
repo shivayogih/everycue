@@ -1,19 +1,20 @@
 package com.everycue.feature.renew
 
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.State
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.scene.DialogSceneStrategy
 import com.everycue.core.navigation.Navigator
 
 fun EntryProviderScope<NavKey>.renewEntryBuilder(
-    state: RenewUiState,
+    state: State<RenewUiState>,
     viewModel: RenewViewModel,
     navigator: Navigator,
 ) {
     entry<RenewHomeRoute> {
         RenewHomeScreen(
-            state = state,
+            state = state.value,
             onAdd = { navigator.navigate(RenewEditorRoute()) },
             onOpenAll = { navigator.navigate(RenewListRoute) },
             onOpenRenewal = { navigator.navigate(RenewDetailRoute(it)) },
@@ -23,7 +24,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
     }
     entry<RenewListRoute> {
         RenewListScreen(
-            renewals = state.renewals,
+            renewals = state.value.renewals,
             onBack = { navigator.goBack() },
             onAdd = { navigator.navigate(RenewEditorRoute()) },
             onOpen = { navigator.navigate(RenewDetailRoute(it)) },
@@ -31,7 +32,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
     }
     entry<RenewEditorRoute> { route ->
         RenewEditorScreen(
-            existing = route.renewalId?.let { id -> state.renewals.firstOrNull { it.id == id } },
+            existing = route.renewalId?.let { id -> state.value.renewals.firstOrNull { it.id == id } },
             onBack = { navigator.goBack() },
             onSave = { draft ->
                 viewModel.onIntent(RenewIntent.Save(draft, route.renewalId))
@@ -39,7 +40,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         )
     }
     entry<RenewDetailRoute> { route ->
-        val item = state.renewals.firstOrNull { it.id == route.renewalId }
+        val item = state.value.renewals.firstOrNull { it.id == route.renewalId }
         RenewDetailScreen(
             item = item,
             onBack = { navigator.goBack() },
@@ -57,7 +58,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
     }
     entry<MarkRenewedRoute> { route ->
         MarkRenewedScreen(
-            item = state.renewals.firstOrNull { it.id == route.renewalId },
+            item = state.value.renewals.firstOrNull { it.id == route.renewalId },
             onBack = { navigator.goBack() },
             onConfirm = { newDate, notes ->
                 viewModel.onIntent(RenewIntent.MarkRenewed(route.renewalId, newDate, notes))
@@ -65,10 +66,10 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         )
     }
     entry<RenewHistoryRoute> {
-        RenewHistoryScreen(state.events, onBack = { navigator.goBack() })
+        RenewHistoryScreen(state.value.events, onBack = { navigator.goBack() })
     }
     entry<RenewInsightsRoute> {
-        RenewInsightsScreen(state, onBack = { navigator.goBack() })
+        RenewInsightsScreen(state.value, onBack = { navigator.goBack() })
     }
     entry<DeleteRenewalDialogRoute>(
         metadata = DialogSceneStrategy.dialog(DialogProperties()),
@@ -82,4 +83,3 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         )
     }
 }
-

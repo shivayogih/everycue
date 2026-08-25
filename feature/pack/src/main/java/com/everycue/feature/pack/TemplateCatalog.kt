@@ -68,4 +68,3 @@ object TemplateCatalog {
 
     fun find(id: String?): PackingTemplate? = all.firstOrNull { it.id == id }
 }
-

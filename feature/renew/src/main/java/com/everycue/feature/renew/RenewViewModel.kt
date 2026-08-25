@@ -53,7 +53,13 @@ class RenewViewModel(private val repository: RenewStore) : ViewModel() {
     private fun execute(block: suspend () -> Unit) {
         viewModelScope.launch {
             busy.value = true
-            runCatching { block() }.onFailure { effectChannel.send(RenewEffect.ShowError(R.string.renew_generic_error)) }
+            runCatching { block() }.onFailure { error ->
+                effectChannel.send(
+                    RenewEffect.ShowError(
+                        (error as? RenewalValidationException)?.messageResource ?: R.string.renew_generic_error,
+                    ),
+                )
+            }
             busy.value = false
         }
     }
@@ -66,4 +72,3 @@ class RenewViewModel(private val repository: RenewStore) : ViewModel() {
         }
     }
 }
-

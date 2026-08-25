@@ -1,5 +1,6 @@
 package com.everycue.feature.renew
 
+import androidx.annotation.StringRes
 import java.time.LocalDate
 
 const val DEFAULT_RENEW_WARNING_DAYS = 30
@@ -46,7 +47,32 @@ data class RenewalDraft(
     val provider: String,
     val referenceNumber: String,
     val notes: String,
-)
+) {
+    fun validationErrors(): RenewalValidationErrors = RenewalValidationErrors(
+        title = if (title.trim().length in 2..100 && title.any(Char::isLetterOrDigit)) null else R.string.error_renewal_title,
+        reminderDays = if (reminderDays in 0..3650) null else R.string.error_reminder_days,
+        provider = if (provider.length <= 100 && (provider.isBlank() || provider.any(Char::isLetterOrDigit))) null else R.string.error_provider,
+        reference = if (referenceNumber.length <= 80 && (referenceNumber.isBlank() || referenceNumber.matches(Regex("[\\p{L}\\p{N}][\\p{L}\\p{N} ./_-]*")))) null else R.string.error_reference,
+        notes = if (notes.length <= 500) null else R.string.error_notes_length,
+    )
+
+    fun validate() {
+        validationErrors().firstError()?.let { throw RenewalValidationException(it) }
+    }
+}
+
+data class RenewalValidationErrors(
+    @StringRes val title: Int? = null,
+    @StringRes val reminderDays: Int? = null,
+    @StringRes val provider: Int? = null,
+    @StringRes val reference: Int? = null,
+    @StringRes val notes: Int? = null,
+) {
+    val isValid: Boolean get() = firstError() == null
+    fun firstError(): Int? = title ?: reminderDays ?: provider ?: reference ?: notes
+}
+
+class RenewalValidationException(@StringRes val messageResource: Int) : IllegalArgumentException()
 
 data class RenewalEvent(
     val id: String,
@@ -68,4 +94,3 @@ data class RenewUiState(
     val upcomingCount: Int get() = renewals.count { it.dueState() == DueState.UPCOMING }
     val urgent: List<RenewalItem> get() = renewals.filter { it.dueState() != DueState.UPCOMING }.take(6)
 }
-

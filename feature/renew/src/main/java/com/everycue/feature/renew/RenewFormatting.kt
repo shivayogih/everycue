@@ -13,4 +13,3 @@ fun Long.asRenewDateLabel(): String = LocalDate.ofEpochDay(this).format(dateForm
 fun Long.asRenewHistoryLabel(): String = Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(historyFormatter)
 fun renewPickerMillisToEpochDay(value: Long?): Long? = value?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay() }
 fun renewEpochDayToPickerMillis(value: Long?): Long? = value?.let { LocalDate.ofEpochDay(it).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }
-

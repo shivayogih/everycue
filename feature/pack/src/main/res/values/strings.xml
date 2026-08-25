@@ -18,4 +18,34 @@
     <string name="item_wallet_id">Wallet and ID</string><string name="item_tshirts">T-shirts</string><string name="item_change_clothes">Change of clothes</string><string name="item_toothbrush">Toothbrush</string><string name="item_phone_charger">Phone charger</string><string name="item_water_bottle">Water bottle</string><string name="item_government_id">Government ID</string><string name="item_travel_tickets">Travel tickets</string><string name="item_formal_shirts">Formal shirts</string><string name="item_laptop">Laptop</string><string name="item_laptop_charger">Laptop charger</string><string name="item_presentation_backup">Presentation backup</string><string name="item_business_cards">Business cards</string><string name="item_swimwear">Swimwear</string><string name="item_sunscreen">Sunscreen</string><string name="item_sunglasses">Sunglasses</string><string name="item_sandals">Sandals</string><string name="item_power_bank">Power bank</string><string name="item_reusable_water">Reusable water bottle</string><string name="item_trail_shoes">Trail shoes</string><string name="item_rain_jacket">Rain jacket</string><string name="item_first_aid">First-aid kit</string><string name="item_offline_map">Offline map</string><string name="item_snacks">Snacks</string><string name="item_water">Water</string><string name="item_torch">Torch</string>
     <string name="demo_trip_name">Mysuru weekend</string><string name="demo_destination">Mysuru</string>
     <string name="error_trip_name">Enter a trip name between 2 and 80 characters.</string><string name="error_destination">Enter a valid destination up to 100 characters.</string><string name="error_item_name">Enter an item name between 2 and 80 characters.</string><string name="error_item_quantity">Quantity must be between 1 and 99.</string><string name="item_added_message">Packing item added.</string>
+    <string name="trip_ready_title">Trip Ready</string>
+    <string name="trip_ready_open">Check Trip Ready</string>
+    <string name="trip_ready_open_help">Review packing, selected expiry dates, and renewals for this trip.</string>
+    <string name="trip_ready_all_clear">Ready for this trip</string>
+    <string name="trip_ready_action_needed">Review before travelling</string>
+    <string name="trip_ready_summary_counts">%1$d critical • %2$d need attention</string>
+    <string name="trip_ready_add_dates">Add travel dates</string>
+    <string name="trip_ready_critical">Critical</string>
+    <string name="trip_ready_needs_attention">Needs attention</string>
+    <string name="trip_ready_ready">Ready</string>
+    <string name="trip_ready_trip_dates">Travel dates</string>
+    <string name="trip_ready_packing">Packing checklist</string>
+    <string name="trip_ready_dates_missing">Add a start date so linked records can be checked against this trip.</string>
+    <string name="trip_ready_packing_empty">Add the items needed for this trip.</string>
+    <string name="trip_ready_packing_incomplete">%1$d of %2$d packing items are complete.</string>
+    <string name="trip_ready_packing_complete">Every packing item is marked complete.</string>
+    <string name="trip_ready_track_before">The confirmed expiry date is %1$s, before this trip starts. This is an expiry alert, not safety advice.</string>
+    <string name="trip_ready_track_during">The confirmed expiry date is %1$s, during this trip. This is an expiry alert, not safety advice.</string>
+    <string name="trip_ready_track_valid">The confirmed expiry date is %1$s, after this trip ends.</string>
+    <string name="trip_ready_renew_before">This renewal is due on %1$s, before this trip starts. Verify requirements with the issuing authority.</string>
+    <string name="trip_ready_renew_during">This renewal is due on %1$s, during this trip. Verify requirements with the issuing authority.</string>
+    <string name="trip_ready_renew_valid">This renewal is due on %1$s, after this trip ends.</string>
+    <string name="trip_ready_open_record">Open record</string>
+    <string name="trip_ready_link_title">Relevant records</string>
+    <string name="trip_ready_link_help">Only records you select are checked. EveryCue does not assume that all items or renewals are relevant.</string>
+    <string name="trip_ready_search">Search Track or Renew records</string>
+    <string name="trip_ready_track_records">Track items</string>
+    <string name="trip_ready_renewal_records">Renewals</string>
+    <string name="trip_ready_no_track_records">No matching active Track items.</string>
+    <string name="trip_ready_no_renewal_records">No matching active renewals.</string>
 </resources>

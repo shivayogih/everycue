@@ -53,7 +53,7 @@ The Track plan is coherent and supports a real consumer utility. Its strongest d
 - Search, filters, categories, storage location, reminders, and insights
 - Typed Navigation 3 keys and notification deep links
 
-The 0.2 offline release candidate adds notifications, deep links, aggregate local insights, backup/restore, and widgets. Custom categories/locations and advanced time-series charts remain later milestones.
+The current offline Phase 1 candidate adds notifications, deep links, aggregate local insights, attachment-safe backup/restore, widgets, Smart Add, Use Next, Waste Coach, Renewal Capture, and Trip Ready. Custom categories/locations and advanced time-series charts remain later milestones.
 
 ## Renew working specification
 
@@ -75,14 +75,16 @@ The full Android project was validated locally with JDK 21, Android SDK Platform
 ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease --no-daemon
 ```
 
-This covers unit checks (including the release device-security evaluator), Android lint for every module, Room schema generation, debug APK assembly, and minified unsigned release APK/AAB packaging. GitHub Actions repeats the same gate on pull requests and pushes to `main`, and rejects a release APK or AAB above 12 MiB.
+This covers unit checks (including the release device-security evaluator and deterministic Trip Ready rules across 500 linked records), Android lint for every module, Room schema generation, debug APK assembly, and minified unsigned release APK/AAB packaging. GitHub Actions repeats the same gate on pull requests and protected integration branches, and rejects a release APK or AAB above 12 MiB.
+
+Trip Ready was exercised on an Android emulator with an actual Pack trip and Renew record. The flow retained its explicit link through rotation and a process restart, recalculated after the trip date changed, and opened the correct owning Renewal detail. The UI uses lazy keyed lists and set-based filtering for large record collections.
 
 Final unsigned artifacts from the validated source state:
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| Debug APK | 25,747,425 | `D3E308D43E6432FDB0406BC9733AE65140732C2DA9387EFB92DD13C9B8AB2A77` |
-| Minified release APK | 3,164,602 | `A52FC6124759612F844E27A250CCC73612FA9004591210F1F4713B02A368088C` |
-| Minified release AAB | 6,299,880 | `752FB8CD8E68287B494356F1B81428A50D72BB0386D5514D512E264BAE2C7D24` |
+| Debug APK | 25,925,857 | `391C0D94ABF882F9595056BEDD79D77CFCAD2F9592A6E48E8BB54CF8198FAA91` |
+| Minified release APK | 4,097,105 | `4377A806B8616F0282E79DA7F0A140E76FD16DE6106A031A6810D219FDD114EB` |
+| Minified release AAB | 7,958,356 | `A6510557FDB44842C33200C33CF0589A2272AEB3307482B390D9F8400C428F59` |
 
-Compared with the pre-optimization validation artifacts, the debug APK is 15.4% smaller and the AAB is 52.9% smaller. Google Play's device-specific download is expected to be smaller than the universal bundle upload because the Play delivery pipeline serves split APKs.
+The release APK is 3.91 MiB and the AAB is 7.59 MiB, both below the enforced 12 MiB ceiling. Google Play's device-specific download is expected to be smaller than the universal bundle upload because the Play delivery pipeline serves split APKs.

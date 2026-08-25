@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PackData(
     val trips: List<Trip> = emptyList(),
+    val tripLinks: List<TripLink> = emptyList(),
 ) {
     fun validate() {
         require(trips.distinctBy(Trip::id).size == trips.size) { "Duplicate trip IDs." }
@@ -14,6 +15,15 @@ data class PackData(
             require(trip.items.distinctBy(PackingItem::id).size == trip.items.size) { "Duplicate packing item IDs." }
             trip.items.forEach { item -> validatePackingItem(item.name, item.quantity) }
         }
+        val tripIds = trips.mapTo(mutableSetOf(), Trip::id)
+        require(
+            tripLinks.all {
+                it.tripId in tripIds &&
+                    it.entityId.isNotBlank() &&
+                    it.relevanceType == it.entityType.defaultRelevance()
+            },
+        ) { "Invalid trip link." }
+        require(tripLinks.distinctBy(TripLink::key).size == tripLinks.size) { "Duplicate trip links." }
     }
 }
 
@@ -46,6 +56,64 @@ internal fun PackData.withPackedOverrides(overrides: Map<Long, Boolean>): PackDa
     }
     return if (dataChanged) copy(trips = updatedTrips) else this
 }
+
+internal data class TripLinkKey(
+    val tripId: Long,
+    val entityType: TripLinkEntityType,
+    val entityId: String,
+)
+
+internal fun PackData.withLinkOverrides(overrides: Map<TripLinkKey, Boolean>): PackData {
+    if (overrides.isEmpty()) return this
+    val linksByKey = tripLinks.associateByTo(mutableMapOf(), TripLink::key)
+    overrides.forEach { (key, linked) ->
+        if (linked) {
+            linksByKey[key] = TripLink(key.tripId, key.entityType, key.entityId)
+        } else {
+            linksByKey.remove(key)
+        }
+    }
+    return copy(tripLinks = linksByKey.values.sortedWith(TripLink.ordering))
+}
+
+@Serializable
+enum class TripLinkEntityType { TRACK, RENEW }
+
+private fun TripLinkEntityType.defaultRelevance(): TripRelevanceType = when (this) {
+    TripLinkEntityType.TRACK -> TripRelevanceType.TRAVEL_CONSUMABLE
+    TripLinkEntityType.RENEW -> TripRelevanceType.TRAVEL_DOCUMENT
+}
+
+@Serializable
+enum class TripRelevanceType { TRAVEL_CONSUMABLE, TRAVEL_DOCUMENT }
+
+@Serializable
+data class TripLink(
+    val tripId: Long,
+    val entityType: TripLinkEntityType,
+    val entityId: String,
+    val relevanceType: TripRelevanceType = entityType.defaultRelevance(),
+) {
+    internal fun key(): TripLinkKey = TripLinkKey(tripId, entityType, entityId)
+
+    internal companion object {
+        val ordering = compareBy<TripLink> { it.tripId }
+            .thenBy { it.entityType.ordinal }
+            .thenBy(TripLink::entityId)
+    }
+}
+
+data class TripReadyTrackRecord(
+    val id: String,
+    val name: String,
+    val expiryEpochDay: Long,
+)
+
+data class TripReadyRenewalRecord(
+    val id: String,
+    val title: String,
+    val dueEpochDay: Long,
+)
 
 @Serializable
 data class Trip(

@@ -23,6 +23,12 @@ sealed interface PackIntent {
     data class DeleteItem(val tripId: Long, val itemId: Long) : PackIntent
     data class MoveItem(val tripId: Long, val itemId: Long, val offset: Int) : PackIntent
     data class UnpackAll(val tripId: Long) : PackIntent
+    data class SetTripLink(
+        val tripId: Long,
+        val entityType: TripLinkEntityType,
+        val entityId: String,
+        val linked: Boolean,
+    ) : PackIntent
     data class DeleteTrip(val tripId: Long) : PackIntent
     data object AddDemoTrip : PackIntent
     data object ResetAll : PackIntent
@@ -40,12 +46,13 @@ sealed interface PackEffect {
 class PackViewModel(private val repository: PackStore) : ViewModel() {
     private val busy = MutableStateFlow(false)
     private val packedOverrides = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    private val linkOverrides = MutableStateFlow<Map<TripLinkKey, Boolean>>(emptyMap())
     private val mutationMutex = Mutex()
     private val effectChannel = Channel<PackEffect>(Channel.BUFFERED)
     val effects = effectChannel.receiveAsFlow()
 
-    val state = combine(repository.data, busy, packedOverrides) { data, isBusy, overrides ->
-        PackUiState(data.withPackedOverrides(overrides), isBusy)
+    val state = combine(repository.data, busy, packedOverrides, linkOverrides) { data, isBusy, packed, links ->
+        PackUiState(data.withPackedOverrides(packed).withLinkOverrides(links), isBusy)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PackUiState())
 
@@ -66,6 +73,7 @@ class PackViewModel(private val repository: PackStore) : ViewModel() {
             is PackIntent.DeleteItem -> execute(markBusy = false) { repository.deleteItem(intent.tripId, intent.itemId) }
             is PackIntent.MoveItem -> execute(markBusy = false) { repository.moveItem(intent.tripId, intent.itemId, intent.offset) }
             is PackIntent.UnpackAll -> execute(markBusy = false) { repository.unpackAll(intent.tripId) }
+            is PackIntent.SetTripLink -> setTripLink(intent)
             is PackIntent.DeleteTrip -> execute {
                 repository.deleteTrip(intent.tripId)
                 effectChannel.send(PackEffect.TripDeleted)
@@ -98,6 +106,26 @@ class PackViewModel(private val repository: PackStore) : ViewModel() {
                 }
                 packedOverrides.update { overrides ->
                     if (overrides[intent.itemId] == intent.packed) overrides - intent.itemId else overrides
+                }
+            }
+        }
+    }
+
+    private fun setTripLink(intent: PackIntent.SetTripLink) {
+        val key = TripLinkKey(intent.tripId, intent.entityType, intent.entityId)
+        linkOverrides.update { it + (key to intent.linked) }
+        viewModelScope.launch {
+            mutationMutex.withLock {
+                runCatching {
+                    repository.setTripLink(intent.tripId, intent.entityType, intent.entityId, intent.linked)
+                    repository.data.first { data ->
+                        data.tripLinks.any { it.key() == key } == intent.linked
+                    }
+                }.onFailure {
+                    effectChannel.send(PackEffect.ShowError(R.string.pack_generic_error))
+                }
+                linkOverrides.update { overrides ->
+                    if (overrides[key] == intent.linked) overrides - key else overrides
                 }
             }
         }

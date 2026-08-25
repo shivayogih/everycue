@@ -485,6 +485,7 @@ fun TripDetailScreen(
     trip: Trip?,
     onBack: () -> Unit,
     onAddItem: (String, PackingCategory, Int) -> Unit,
+    onTripReady: () -> Unit,
     onEditTrip: () -> Unit,
     onTogglePacked: (PackingItem, Boolean) -> Unit,
     onDeleteItem: (PackingItem) -> Unit,
@@ -554,6 +555,31 @@ fun TripDetailScreen(
         ) {
             item {
                 TripProgressHeader(trip)
+            }
+            item {
+                ElevatedCard(
+                    onClick = onTripReady,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(Icons.Default.TravelExplore, contentDescription = null)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.trip_ready_open), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                stringResource(R.string.trip_ready_open_help),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                    }
+                }
             }
             item {
                 OutlinedTextField(

@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class CreatePackTripRoute(val templateId: String? = null) : NavKey
 @Serializable data class EditPackTripRoute(val tripId: Long) : NavKey
 @Serializable data class PackTripDetailRoute(val tripId: Long) : NavKey
+@Serializable data class TripReadyRoute(val tripId: Long) : NavKey
 @Serializable data object PackTemplatesRoute : NavKey
 @Serializable data class PackTemplateDetailRoute(val templateId: String) : NavKey
 @Serializable data class AddPackItemDialogRoute(val tripId: Long) : NavKey

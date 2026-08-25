@@ -79,6 +79,64 @@ class AppPrivateAttachmentStore(
         }
     }
 
+    override suspend fun restore(
+        request: AttachmentRestoreRequest,
+        input: InputStream,
+    ): LocalAttachment = onIoThread {
+        val mimeType = AttachmentPolicy.normalizeMimeType(request.mimeType)
+            ?: throw AttachmentException(AttachmentError.UNSUPPORTED_TYPE)
+        if (!AttachmentPolicy.isSupportedMimeType(mimeType)) {
+            throw AttachmentException(AttachmentError.UNSUPPORTED_TYPE)
+        }
+        AttachmentPolicy.validateSize(request.sizeBytes)?.let { throw AttachmentException(it) }
+        if (request.id.isBlank() || request.id.length > 100 || request.id.any(Char::isISOControl)) {
+            throw AttachmentException(AttachmentError.INVALID_REFERENCE)
+        }
+
+        val storageId = UUID.randomUUID().toString()
+        val ownerDirectory = ownerDirectory(request.owner).apply { mkdirs() }
+        val relativeReference = listOf(
+            request.owner.type.name.lowercase(),
+            safePathSegment(request.owner.id),
+            storageId + AttachmentPolicy.extensionFor(mimeType),
+        ).joinToString("/")
+        val destination = resolveOwnedPath(relativeReference)
+        val staging = File(ownerDirectory, ".$storageId.restore.partial")
+
+        try {
+            val copied = input.use { source ->
+                FileOutputStream(staging).use { output -> copyBounded(source, output) }
+            }
+            if (copied != request.sizeBytes) {
+                throw AttachmentException(AttachmentError.COPY_FAILED)
+            }
+            if (!staging.renameTo(destination)) {
+                throw AttachmentException(AttachmentError.COPY_FAILED)
+            }
+            LocalAttachment(
+                id = request.id,
+                owner = request.owner,
+                displayName = AttachmentPolicy.safeDisplayName(
+                    request.displayName,
+                    fallback = request.id + AttachmentPolicy.extensionFor(mimeType),
+                ),
+                mimeType = mimeType,
+                sizeBytes = copied,
+                localReference = relativeReference,
+                createdAtMillis = request.createdAtMillis,
+                source = request.source,
+            )
+        } catch (error: AttachmentException) {
+            staging.delete()
+            destination.delete()
+            throw error
+        } catch (error: Exception) {
+            staging.delete()
+            destination.delete()
+            throw AttachmentException(AttachmentError.COPY_FAILED, error)
+        }
+    }
+
     override suspend fun remove(attachment: LocalAttachment): Boolean = onIoThread {
         resolveOwnedPath(attachment.localReference).delete()
     }
@@ -198,4 +256,3 @@ class AppPrivateAttachmentStore(
         }
     }
 }
-

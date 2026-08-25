@@ -2,8 +2,10 @@ package com.everycue.app
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.room.withTransaction
 import com.everycue.core.database.EveryCueDatabase
+import com.everycue.core.database.RenewalAttachmentEntity
 import com.everycue.core.database.RenewalEntity
 import com.everycue.core.database.RenewalEventEntity
 import com.everycue.core.database.TrackEventEntity
@@ -11,6 +13,8 @@ import com.everycue.core.database.TrackItemEntity
 import com.everycue.core.database.TrackCoachPreferenceEntity
 import com.everycue.core.attachments.AttachmentOwner
 import com.everycue.core.attachments.AttachmentOwnerType
+import com.everycue.core.attachments.AttachmentPolicy
+import com.everycue.core.attachments.AttachmentRestoreRequest
 import com.everycue.core.attachments.AttachmentSource
 import com.everycue.core.attachments.AttachmentStore
 import com.everycue.core.attachments.LocalAttachment
@@ -22,10 +26,10 @@ import com.everycue.feature.renew.RenewalType
 import com.everycue.feature.track.TrackCategory
 import com.everycue.feature.track.TrackDraft
 import com.everycue.feature.track.TrackCoachPreferenceType
+import java.io.BufferedInputStream
+import java.io.File
+import java.util.UUID
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 @Serializable
 data class EveryCueBackup(
@@ -39,6 +43,7 @@ data class EveryCueBackup(
     val settings: AppSettings,
     val profile: LocalProfile? = null,
     val trackCoachPreferences: List<TrackCoachPreferenceBackup> = emptyList(),
+    val renewalAttachments: List<RenewalAttachmentBackup> = emptyList(),
 )
 
 @Serializable
@@ -77,7 +82,23 @@ data class RenewalEventBackup(
     val newDueEpochDay: Long, val renewedAtMillis: Long, val notes: String,
 )
 
-const val CURRENT_BACKUP_VERSION = 1
+@Serializable
+data class RenewalAttachmentBackup(
+    val id: String,
+    val renewalId: String,
+    val displayName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val createdAtMillis: Long,
+    val source: String,
+    val archiveEntry: String = "",
+    val sha256: String = "",
+)
+
+const val ATTACHMENT_ARCHIVE_BACKUP_VERSION = 2
+const val CURRENT_BACKUP_VERSION = ATTACHMENT_ARCHIVE_BACKUP_VERSION
+
+class BackupException(@StringRes val messageResource: Int) : IllegalArgumentException()
 
 interface BackupStore {
     suspend fun exportTo(uri: Uri)
@@ -93,9 +114,8 @@ class BackupRepository(
     private val cipher: TextCipher,
     private val attachmentStore: AttachmentStore,
 ) : BackupStore {
-    private val resolver = context.applicationContext.contentResolver
-    private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true; prettyPrint = true }
-
+    private val applicationContext = context.applicationContext
+    private val resolver = applicationContext.contentResolver
     override suspend fun exportTo(uri: Uri) {
         val trackDao = database.trackDao()
         val renewalDao = database.renewalDao()
@@ -110,14 +130,36 @@ class BackupRepository(
             profile = userProfileStore.snapshot(),
             trackCoachPreferences = trackDao.getCoachPreferences().map(TrackCoachPreferenceEntity::toBackup),
         )
-        resolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(json.encodeToString(payload)) }
-            ?: error("Could not open the selected backup file.")
+        val attachmentSources = renewalDao.getAllAttachments().map { entity ->
+            val attachment = entity.toLocalAttachment(cipher)
+            BackupAttachmentSource(
+                metadata = attachment.toBackup(),
+                file = attachmentStore.contentFile(attachment),
+            )
+        }
+        resolver.openOutputStream(uri, "w")?.use { output ->
+            BackupArchiveIO.write(output, payload, attachmentSources)
+        } ?: error("Could not open the selected backup file.")
     }
 
     override suspend fun importFrom(uri: Uri) {
-        val raw = resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            ?: error("Could not read the selected backup file.")
-        val payload = json.decodeFromString<EveryCueBackup>(raw)
+        val stagingDirectory = File(
+            applicationContext.cacheDir,
+            "everycue_backup_restore/${UUID.randomUUID()}",
+        )
+        val archive = resolver.openInputStream(uri)?.use { source ->
+            val input = BufferedInputStream(source)
+            input.mark(4)
+            val signature = ByteArray(4)
+            val signatureSize = input.read(signature)
+            input.reset()
+            if (signatureSize >= 2 && signature[0] == 'P'.code.toByte() && signature[1] == 'K'.code.toByte()) {
+                BackupArchiveIO.read(input, stagingDirectory)
+            } else {
+                BackupArchiveIO.readLegacyJson(input)
+            }
+        } ?: error("Could not read the selected backup file.")
+        val payload = archive.payload
         require(payload.formatVersion in 1..CURRENT_BACKUP_VERSION) {
             "This backup format is newer than this EveryCue version supports."
         }
@@ -126,41 +168,82 @@ class BackupRepository(
         payload.validateUserData()
 
         val renewalDao = database.renewalDao()
-        renewalDao.getAllAttachments().forEach { attachment ->
-            runCatching {
-                attachmentStore.remove(
-                    LocalAttachment(
-                        id = attachment.id,
-                        owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, attachment.renewalId),
-                        displayName = cipher.decrypt(attachment.displayName),
-                        mimeType = attachment.mimeType,
-                        sizeBytes = attachment.sizeBytes,
-                        localReference = cipher.decrypt(attachment.localReference),
-                        createdAtMillis = attachment.createdAtMillis,
-                        source = runCatching { AttachmentSource.valueOf(attachment.source) }
-                            .getOrDefault(AttachmentSource.DOCUMENT),
-                    ),
-                )
+        val currentAttachments = renewalDao.getAllAttachments().map { it.toLocalAttachment(cipher) }
+        require(archive.isAttachmentArchive || payload.formatVersion < ATTACHMENT_ARCHIVE_BACKUP_VERSION) {
+            "Attachment backup format requires an EveryCue archive."
+        }
+        val isAttachmentArchive = archive.isAttachmentArchive
+        if (!isAttachmentArchive) {
+            val restoredRenewalIds = payload.renewals.mapTo(hashSetOf(), RenewalBackup::id)
+            if (currentAttachments.any { it.owner.id !in restoredRenewalIds }) {
+                stagingDirectory.deleteRecursively()
+                throw BackupException(R.string.backup_legacy_attachment_conflict)
             }
         }
 
-        database.withTransaction {
-            val trackDao = database.trackDao()
-            trackDao.deleteAllEvents()
-            trackDao.deleteAllItems()
-            trackDao.deleteAllCoachPreferences()
-            renewalDao.deleteAllEvents()
-            renewalDao.deleteAllAttachments()
-            renewalDao.deleteAllRenewals()
-            trackDao.upsertItems(payload.trackItems.map { it.toEntity(cipher) })
-            trackDao.upsertEvents(payload.trackEvents.map { it.toEntity(cipher) })
-            trackDao.upsertCoachPreferences(payload.trackCoachPreferences.map(TrackCoachPreferenceBackup::toEntity))
-            renewalDao.upsertRenewals(payload.renewals.map { it.toEntity(cipher) })
-            renewalDao.upsertEvents(payload.renewalEvents.map { it.toEntity(cipher) })
+        val restoredAttachments = mutableListOf<LocalAttachment>()
+        try {
+            if (isAttachmentArchive) {
+                payload.renewalAttachments.forEach { metadata ->
+                    val stagedFile = archive.stagedFilesByAttachmentId[metadata.id]
+                        ?: error("Backup attachment staging file is missing.")
+                    restoredAttachments += attachmentStore.restore(
+                        request = AttachmentRestoreRequest(
+                            id = metadata.id,
+                            owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, metadata.renewalId),
+                            displayName = metadata.displayName,
+                            mimeType = metadata.mimeType,
+                            sizeBytes = metadata.sizeBytes,
+                            createdAtMillis = metadata.createdAtMillis,
+                            source = AttachmentSource.valueOf(metadata.source),
+                        ),
+                        input = stagedFile.inputStream(),
+                    )
+                }
+            } else {
+                restoredAttachments += currentAttachments
+            }
+
+            val previousPack = packRepository.snapshot()
+            val previousSettings = settingsRepository.snapshot()
+            val previousProfile = userProfileStore.snapshot()
+            try {
+                packRepository.replaceAll(payload.pack)
+                settingsRepository.replaceAll(payload.settings)
+                userProfileStore.replace(payload.profile)
+                database.withTransaction {
+                    val trackDao = database.trackDao()
+                    trackDao.deleteAllEvents()
+                    trackDao.deleteAllItems()
+                    trackDao.deleteAllCoachPreferences()
+                    renewalDao.deleteAllEvents()
+                    renewalDao.deleteAllAttachments()
+                    renewalDao.deleteAllRenewals()
+                    trackDao.upsertItems(payload.trackItems.map { it.toEntity(cipher) })
+                    trackDao.upsertEvents(payload.trackEvents.map { it.toEntity(cipher) })
+                    trackDao.upsertCoachPreferences(payload.trackCoachPreferences.map(TrackCoachPreferenceBackup::toEntity))
+                    renewalDao.upsertRenewals(payload.renewals.map { it.toEntity(cipher) })
+                    renewalDao.upsertEvents(payload.renewalEvents.map { it.toEntity(cipher) })
+                    renewalDao.upsertAttachments(restoredAttachments.map { it.toEntity(cipher) })
+                }
+            } catch (error: Throwable) {
+                runCatching { packRepository.replaceAll(previousPack) }
+                runCatching { settingsRepository.replaceAll(previousSettings) }
+                runCatching { userProfileStore.replace(previousProfile) }
+                throw error
+            }
+
+            if (isAttachmentArchive) {
+                currentAttachments.forEach { attachment -> runCatching { attachmentStore.remove(attachment) } }
+            }
+        } catch (error: Throwable) {
+            if (isAttachmentArchive) {
+                restoredAttachments.forEach { attachment -> runCatching { attachmentStore.remove(attachment) } }
+            }
+            throw error
+        } finally {
+            stagingDirectory.deleteRecursively()
         }
-        packRepository.replaceAll(payload.pack)
-        settingsRepository.replaceAll(payload.settings)
-        payload.profile?.let { userProfileStore.replace(it) }
     }
 }
 
@@ -171,7 +254,8 @@ private fun EveryCueBackup.validateUserData() {
             pack.trips.size <= 10_000 &&
             trackEvents.size <= 100_000 &&
             renewalEvents.size <= 100_000 &&
-            trackCoachPreferences.size <= 100_000,
+            trackCoachPreferences.size <= 100_000 &&
+            renewalAttachments.size <= renewals.size * 20,
     ) {
         "Backup contains more records than EveryCue supports."
     }
@@ -211,6 +295,17 @@ private fun EveryCueBackup.validateUserData() {
             notes = item.notes,
         ).validate()
     }
+    val renewalIds = renewals.mapTo(hashSetOf(), RenewalBackup::id)
+    require(renewalAttachments.distinctBy { it.id }.size == renewalAttachments.size) {
+        "Backup contains duplicate renewal attachment IDs."
+    }
+    renewalAttachments.forEach { attachment ->
+        require(attachment.id.isNotBlank() && attachment.renewalId in renewalIds)
+        require(attachment.displayName.length in 1..120 && attachment.displayName.none(Char::isISOControl))
+        require(AttachmentPolicy.isSupportedMimeType(attachment.mimeType))
+        require(AttachmentPolicy.validateSize(attachment.sizeBytes) == null)
+        require(attachment.source in AttachmentSource.entries.map(AttachmentSource::name))
+    }
     pack.validate()
     profile?.validate()
 }
@@ -225,4 +320,32 @@ private fun RenewalEntity.toBackup(cipher: TextCipher) = RenewalBackup(id, ciphe
 private fun RenewalBackup.toEntity(cipher: TextCipher) = RenewalEntity(id, cipher.encrypt(title), type, dueEpochDay, reminderDays, cipher.encrypt(provider), cipher.encrypt(referenceNumber), cipher.encrypt(notes), lastRenewedEpochDay, lifecycleStatus, createdAtMillis, updatedAtMillis)
 private fun RenewalEventEntity.toBackup(cipher: TextCipher) = RenewalEventBackup(id, renewalId, cipher.decrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.decrypt(notes))
 private fun RenewalEventBackup.toEntity(cipher: TextCipher) = RenewalEventEntity(id, renewalId, cipher.encrypt(titleSnapshot), previousDueEpochDay, newDueEpochDay, renewedAtMillis, cipher.encrypt(notes))
-
+private fun RenewalAttachmentEntity.toLocalAttachment(cipher: TextCipher) = LocalAttachment(
+    id = id,
+    owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, renewalId),
+    displayName = cipher.decrypt(displayName),
+    mimeType = mimeType,
+    sizeBytes = sizeBytes,
+    localReference = cipher.decrypt(localReference),
+    createdAtMillis = createdAtMillis,
+    source = runCatching { AttachmentSource.valueOf(source) }.getOrDefault(AttachmentSource.DOCUMENT),
+)
+private fun LocalAttachment.toBackup() = RenewalAttachmentBackup(
+    id = id,
+    renewalId = owner.id,
+    displayName = displayName,
+    mimeType = mimeType,
+    sizeBytes = sizeBytes,
+    createdAtMillis = createdAtMillis,
+    source = source.name,
+)
+private fun LocalAttachment.toEntity(cipher: TextCipher) = RenewalAttachmentEntity(
+    id = id,
+    renewalId = owner.id,
+    displayName = cipher.encrypt(displayName),
+    mimeType = mimeType,
+    sizeBytes = sizeBytes,
+    localReference = cipher.encrypt(localReference),
+    createdAtMillis = createdAtMillis,
+    source = source.name,
+)

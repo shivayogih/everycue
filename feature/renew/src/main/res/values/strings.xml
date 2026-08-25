@@ -8,8 +8,38 @@
     <string name="edit_renewal">Edit renewal</string><string name="save_renewal">Save renewal</string><string name="save_changes">Save changes</string><string name="title">Title</string><string name="title_hint">Passport, vehicle insurance…</string><string name="type">Type</string><string name="due_date">Due date</string><string name="remind_before_days">Remind before (days)</string><string name="provider_issuer">Provider / issuer</string><string name="reference_number">Reference number</string><string name="notes">Notes</string>
     <string name="renewal_unavailable">Renewal unavailable</string><string name="renewal_unavailable_title">This renewal is unavailable</string><string name="renewal_unavailable_body">It may have been deleted.</string><string name="due_date_format">Due: %1$s</string><string name="reminder">Reminder</string><string name="days_before">%1$d days before</string><string name="reference">Reference</string><string name="last_renewed">Last renewed</string><string name="mark_renewed">Mark renewed</string>
     <string name="save_new_due_date">Save new due date</string><string name="currently_due">%1$s is currently due %2$s.</string><string name="new_due_date">New due date</string><string name="renewal_notes">Renewal notes</string><string name="no_renewals_recorded">No renewals recorded</string><string name="no_renewals_recorded_body">When you mark an item renewed, its old and new due dates appear here.</string><string name="history_date_range">%1$s → %2$s</string>
-    <string name="delete_renewal_title">Delete %1$s?</string><string name="renewal_fallback">renewal</string><string name="delete_renewal_body">This removes the due date. Existing renewal-history entries remain local.</string>
+    <string name="delete_renewal_title">Delete %1$s?</string><string name="renewal_fallback">renewal</string><string name="delete_renewal_body">This removes the due date and its app-owned attachments. Existing renewal-history entries remain local; original files and photos outside EveryCue are never deleted.</string>
     <string name="type_document">Document</string><string name="type_insurance">Insurance</string><string name="type_warranty">Warranty</string><string name="type_membership">Membership</string><string name="type_subscription">Subscription</string><string name="type_certificate">Certificate</string><string name="type_other">Other</string>
     <string name="overdue_days">Overdue by %1$d days</string><string name="overdue_one_day">Overdue by 1 day</string><string name="due_today">Due today</string><string name="due_tomorrow">Due tomorrow</string><string name="due_in_days">Due in %1$d days</string>
     <string name="error_renewal_title">Enter a title between 2 and 100 characters.</string><string name="error_reminder_days">Reminder days must be a number from 0 to 3650.</string><string name="error_provider">Enter a valid provider up to 100 characters.</string><string name="error_reference">Use letters, numbers, spaces, /, -, or _ in the reference.</string><string name="error_notes_length">Notes can use at most 500 characters.</string><string name="error_new_due_date">Choose a new due date in the future.</string>
+    <string name="attachments">Images and files</string>
+    <string name="attachments_security_help">EveryCue keeps a private app-owned copy. Files are never uploaded, and viewing or sharing grants another app read access only for that action.</string>
+    <string name="add_files">Add files</string>
+    <string name="take_photo">Take photo</string>
+    <string name="no_attachments">No images or files are attached yet.</string>
+    <string name="attachment_details">%1$s • %2$s</string>
+    <string name="attachment_size_mb">%1$.1f MB</string>
+    <string name="attachment_size_kb">%1$.1f KB</string>
+    <plurals name="attachment_size_bytes">
+        <item quantity="one">%1$d byte</item>
+        <item quantity="other">%1$d bytes</item>
+    </plurals>
+    <string name="view">View</string>
+    <string name="share">Share</string>
+    <string name="remove">Remove</string>
+    <string name="remove_attachment_title">Remove attachment?</string>
+    <string name="remove_attachment_body">EveryCue will delete its private copy of %1$s. The original file or photo remains unchanged.</string>
+    <string name="attachment_added">Attachment stored safely.</string>
+    <string name="attachment_removed">Attachment removed. The original remains unchanged.</string>
+    <string name="attachment_source_unavailable">That file is no longer available. Choose it again.</string>
+    <string name="attachment_empty">Empty files cannot be attached.</string>
+    <string name="attachment_too_large">Each attachment must be 20 MB or smaller.</string>
+    <string name="attachment_limit">A renewal can keep up to 20 attachments.</string>
+    <string name="attachment_unsupported">Choose a PDF, plain-text file, or JPEG, PNG, WebP, HEIC, or HEIF image.</string>
+    <string name="attachment_copy_failed">EveryCue could not safely copy that file.</string>
+    <string name="attachment_open_failed">No compatible app could open this attachment.</string>
+    <string name="attachment_share_failed">This attachment could not be shared.</string>
+    <string name="view_attachment_chooser">Open attachment</string>
+    <string name="share_attachment_chooser">Share attachment</string>
 </resources>
+

@@ -114,9 +114,34 @@ interface RenewalDao {
     @Query("SELECT * FROM renewal_events ORDER BY renewedAtMillis DESC")
     fun observeEvents(): Flow<List<RenewalEventEntity>>
 
+    @Query("SELECT * FROM renewal_attachments ORDER BY createdAtMillis DESC")
+    fun observeAttachments(): Flow<List<RenewalAttachmentEntity>>
+
+    @Query("SELECT * FROM renewal_attachments WHERE renewalId = :renewalId ORDER BY createdAtMillis DESC")
+    suspend fun getAttachments(renewalId: String): List<RenewalAttachmentEntity>
+
+    @Query("SELECT * FROM renewal_attachments ORDER BY createdAtMillis ASC")
+    suspend fun getAllAttachments(): List<RenewalAttachmentEntity>
+
+    @Query("SELECT * FROM renewal_attachments WHERE id = :attachmentId LIMIT 1")
+    suspend fun getAttachment(attachmentId: String): RenewalAttachmentEntity?
+
+    @Upsert
+    suspend fun upsertAttachment(attachment: RenewalAttachmentEntity)
+
+    @Query("DELETE FROM renewal_attachments WHERE id = :attachmentId")
+    suspend fun deleteAttachment(attachmentId: String)
+
+    @Query("DELETE FROM renewal_attachments WHERE renewalId = :renewalId")
+    suspend fun deleteAttachmentsForRenewal(renewalId: String)
+
     @Query("DELETE FROM renewal_events")
     suspend fun deleteAllEvents()
 
     @Query("DELETE FROM renewals")
     suspend fun deleteAllRenewals()
+
+    @Query("DELETE FROM renewal_attachments")
+    suspend fun deleteAllAttachments()
 }
+

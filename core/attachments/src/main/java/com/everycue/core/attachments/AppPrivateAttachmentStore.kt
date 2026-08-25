@@ -89,6 +89,28 @@ class AppPrivateAttachmentStore(
         FileInputStream(file)
     }
 
+    override fun contentFile(attachment: LocalAttachment): File {
+        val file = resolveOwnedPath(attachment.localReference)
+        if (!file.isFile) throw AttachmentException(AttachmentError.SOURCE_UNAVAILABLE)
+        return file
+    }
+
+    override fun createTemporaryCaptureFile(): File {
+        captureRoot.mkdirs()
+        return File(captureRoot, "${UUID.randomUUID()}.jpg").apply {
+            if (!createNewFile()) throw AttachmentException(AttachmentError.COPY_FAILED)
+        }
+    }
+
+    override fun removeTemporaryCapture(file: File): Boolean {
+        val root = captureRoot.canonicalFile
+        val candidate = file.canonicalFile
+        if (candidate == root || !candidate.path.startsWith(root.path + File.separator)) {
+            throw AttachmentException(AttachmentError.INVALID_REFERENCE)
+        }
+        return !candidate.exists() || candidate.delete()
+    }
+
     override suspend fun cleanupTemporaryCaptures(olderThanMillis: Long): Int = onIoThread {
         if (!captureRoot.exists()) return@onIoThread 0
         val now = System.currentTimeMillis()
@@ -176,3 +198,4 @@ class AppPrivateAttachmentStore(
         }
     }
 }
+

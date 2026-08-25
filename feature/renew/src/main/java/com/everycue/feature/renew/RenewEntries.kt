@@ -11,6 +11,10 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
     state: State<RenewUiState>,
     viewModel: RenewViewModel,
     navigator: Navigator,
+    onAddFiles: (String) -> Unit,
+    onTakePhoto: (String) -> Unit,
+    onViewAttachment: (RenewalAttachment) -> Unit,
+    onShareAttachment: (RenewalAttachment) -> Unit,
 ) {
     entry<RenewHomeRoute> {
         RenewHomeScreen(
@@ -43,6 +47,7 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         val item = state.value.renewals.firstOrNull { it.id == route.renewalId }
         RenewDetailScreen(
             item = item,
+            attachments = state.value.attachmentsFor(route.renewalId),
             onBack = { navigator.goBack() },
             onEdit = { navigator.navigate(RenewEditorRoute(route.renewalId)) },
             onRenew = { navigator.navigate(MarkRenewedRoute(route.renewalId)) },
@@ -54,6 +59,11 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
                     ),
                 )
             },
+            onAddFiles = { onAddFiles(route.renewalId) },
+            onTakePhoto = { onTakePhoto(route.renewalId) },
+            onViewAttachment = onViewAttachment,
+            onShareAttachment = onShareAttachment,
+            onRemoveAttachment = { viewModel.onIntent(RenewIntent.RemoveAttachment(it)) },
         )
     }
     entry<MarkRenewedRoute> { route ->
@@ -83,3 +93,4 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         )
     }
 }
+

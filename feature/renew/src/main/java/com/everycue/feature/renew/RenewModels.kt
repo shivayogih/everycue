@@ -1,9 +1,14 @@
 package com.everycue.feature.renew
 
 import androidx.annotation.StringRes
+import com.everycue.core.attachments.AttachmentOwner
+import com.everycue.core.attachments.AttachmentOwnerType
+import com.everycue.core.attachments.AttachmentSource
+import com.everycue.core.attachments.LocalAttachment
 import java.time.LocalDate
 
 const val DEFAULT_RENEW_WARNING_DAYS = 30
+const val MAX_RENEWAL_ATTACHMENTS = 20
 
 enum class RenewalType(val emoji: String) {
     DOCUMENT("🪪"), INSURANCE("🛡️"), WARRANTY("🧾"), MEMBERSHIP("🎟️"), SUBSCRIPTION("🔁"), CERTIFICATE("📜"), OTHER("📅"),
@@ -74,6 +79,8 @@ data class RenewalValidationErrors(
 
 class RenewalValidationException(@StringRes val messageResource: Int) : IllegalArgumentException()
 
+class RenewalAttachmentLimitException : IllegalStateException()
+
 data class RenewalEvent(
     val id: String,
     val renewalId: String,
@@ -84,13 +91,39 @@ data class RenewalEvent(
     val notes: String,
 )
 
+data class RenewalAttachment(
+    val id: String,
+    val renewalId: String,
+    val displayName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val localReference: String,
+    val createdAtMillis: Long,
+    val source: AttachmentSource,
+) {
+    fun asLocalAttachment(): LocalAttachment = LocalAttachment(
+        id = id,
+        owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, renewalId),
+        displayName = displayName,
+        mimeType = mimeType,
+        sizeBytes = sizeBytes,
+        localReference = localReference,
+        createdAtMillis = createdAtMillis,
+        source = source,
+    )
+}
+
 data class RenewUiState(
     val renewals: List<RenewalItem> = emptyList(),
     val events: List<RenewalEvent> = emptyList(),
+    val attachments: List<RenewalAttachment> = emptyList(),
     val isBusy: Boolean = false,
 ) {
     val overdueCount: Int get() = renewals.count { it.dueState() == DueState.OVERDUE }
     val dueSoonCount: Int get() = renewals.count { it.dueState() in setOf(DueState.DUE_SOON, DueState.DUE_TODAY) }
     val upcomingCount: Int get() = renewals.count { it.dueState() == DueState.UPCOMING }
     val urgent: List<RenewalItem> get() = renewals.filter { it.dueState() != DueState.UPCOMING }.take(6)
+    fun attachmentsFor(renewalId: String): List<RenewalAttachment> =
+        attachments.filter { it.renewalId == renewalId }
 }
+

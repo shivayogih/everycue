@@ -18,13 +18,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
@@ -54,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -458,10 +463,16 @@ private fun RenewDatePickerDialog(
 @Composable
 fun RenewDetailScreen(
     item: RenewalItem?,
+    attachments: List<RenewalAttachment> = emptyList(),
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onRenew: () -> Unit,
     onDelete: () -> Unit,
+    onAddFiles: () -> Unit = {},
+    onTakePhoto: () -> Unit = {},
+    onViewAttachment: (RenewalAttachment) -> Unit = {},
+    onShareAttachment: (RenewalAttachment) -> Unit = {},
+    onRemoveAttachment: (String) -> Unit = {},
 ) {
     if (item == null) {
         Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.renewal_unavailable)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } }) }) { padding ->
@@ -469,6 +480,7 @@ fun RenewDetailScreen(
         }
         return
     }
+    var pendingRemovalId by rememberSaveable(item.id) { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -507,12 +519,114 @@ fun RenewDetailScreen(
             if (item.referenceNumber.isNotBlank()) RenewDetailRow(stringResource(R.string.reference), item.referenceNumber)
             item.lastRenewedEpochDay?.let { RenewDetailRow(stringResource(R.string.last_renewed), it.asRenewDateLabel()) }
             if (item.notes.isNotBlank()) RenewDetailRow(stringResource(R.string.notes), item.notes)
+            SectionHeader(stringResource(R.string.attachments))
+            Text(
+                stringResource(R.string.attachments_security_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedButton(onClick = onAddFiles, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.AttachFile, contentDescription = null)
+                    Text(stringResource(R.string.add_files))
+                }
+                OutlinedButton(onClick = onTakePhoto, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Text(stringResource(R.string.take_photo))
+                }
+            }
+            if (attachments.isEmpty()) {
+                Text(
+                    stringResource(R.string.no_attachments),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                attachments.forEach { attachment ->
+                    RenewalAttachmentCard(
+                        attachment = attachment,
+                        onView = { onViewAttachment(attachment) },
+                        onShare = { onShareAttachment(attachment) },
+                        onRemove = { pendingRemovalId = attachment.id },
+                    )
+                }
+            }
             Button(onClick = onRenew, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Icon(Icons.Default.Refresh, contentDescription = null)
                 Text(stringResource(R.string.mark_renewed))
             }
         }
     }
+
+    pendingRemovalId?.let { attachmentId ->
+        val attachmentName = attachments.firstOrNull { it.id == attachmentId }?.displayName.orEmpty()
+        AlertDialog(
+            onDismissRequest = { pendingRemovalId = null },
+            title = { Text(stringResource(R.string.remove_attachment_title)) },
+            text = { Text(stringResource(R.string.remove_attachment_body, attachmentName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingRemovalId = null
+                    onRemoveAttachment(attachmentId)
+                }) { Text(stringResource(R.string.remove)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemovalId = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+}
+
+@Composable
+private fun RenewalAttachmentCard(
+    attachment: RenewalAttachment,
+    onView: () -> Unit,
+    onShare: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                attachment.displayName,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                stringResource(
+                    R.string.attachment_details,
+                    attachment.mimeType,
+                    attachment.sizeBytes.asAttachmentSizeLabel(),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onView) {
+                    Icon(Icons.Default.Visibility, contentDescription = null)
+                    Text(stringResource(R.string.view))
+                }
+                TextButton(onClick = onShare) {
+                    Icon(Icons.Default.Share, contentDescription = null)
+                    Text(stringResource(R.string.share))
+                }
+                TextButton(onClick = onRemove) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Text(stringResource(R.string.remove))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Long.asAttachmentSizeLabel(): String = when {
+    this >= 1024L * 1024L -> stringResource(R.string.attachment_size_mb, this / (1024f * 1024f))
+    this >= 1024L -> stringResource(R.string.attachment_size_kb, this / 1024f)
+    else -> pluralStringResource(R.plurals.attachment_size_bytes, toInt(), this)
 }
 
 @Composable
@@ -533,7 +647,7 @@ fun MarkRenewedScreen(
     onConfirm: (Long, String) -> Unit,
 ) {
     if (item == null) {
-        RenewDetailScreen(null, onBack, {}, {}, {})
+        RenewDetailScreen(null, onBack = onBack, onEdit = {}, onRenew = {}, onDelete = {})
         return
     }
     var newDueEpochDay by rememberSaveable(item.id) { mutableStateOf(LocalDate.ofEpochDay(item.dueEpochDay).plusYears(1).toEpochDay()) }
@@ -624,3 +738,4 @@ fun DeleteRenewalDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
+

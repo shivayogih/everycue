@@ -1,5 +1,7 @@
 package com.everycue.app
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,7 +25,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -35,6 +41,13 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
+import androidx.core.content.FileProvider
+import com.everycue.core.attachments.AttachmentError
+import com.everycue.core.attachments.AttachmentException
+import com.everycue.core.attachments.AttachmentImportRequest
+import com.everycue.core.attachments.AttachmentOwner
+import com.everycue.core.attachments.AttachmentOwnerType
+import com.everycue.core.attachments.AttachmentSource
 import com.everycue.core.navigation.Navigator
 import com.everycue.core.extraction.ExtractionSourceType
 import com.everycue.core.vision.OnDeviceVision
@@ -50,6 +63,8 @@ import com.everycue.feature.renew.RenewHomeRoute
 import com.everycue.feature.renew.RenewDetailRoute
 import com.everycue.feature.renew.RenewViewModel
 import com.everycue.feature.renew.RenewEffect
+import com.everycue.feature.renew.RenewIntent
+import com.everycue.feature.renew.RenewalAttachment
 import com.everycue.feature.renew.renewEntryBuilder
 import com.everycue.feature.track.TrackHomeRoute
 import com.everycue.feature.track.TrackDetailRoute
@@ -58,6 +73,8 @@ import com.everycue.feature.track.TrackEffect
 import com.everycue.feature.track.TrackIntent
 import com.everycue.feature.track.SmartAddFailure
 import com.everycue.feature.track.trackEntryBuilder
+import java.io.File
+import kotlinx.coroutines.launch
 
 private data class TopDestination(
     val route: NavKey,
@@ -102,7 +119,11 @@ fun EveryCueApp(
     val dialogStrategy = remember { DialogSceneStrategy<NavKey>() }
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val application = context.applicationContext as EveryCueApplication
     val resources = LocalResources.current
+    val coroutineScope = rememberCoroutineScope()
+    var renewalAttachmentTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var renewalCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
     val currentRoute = navigationState.currentRoute
     val dismissKeyboard = rememberKeyboardDismissAction()
     val vision = remember(context) { OnDeviceVision(context) }
@@ -123,6 +144,73 @@ fun EveryCueApp(
                 onResult = { trackViewModel.onIntent(TrackIntent.ApplyRecognizedText(it, ExtractionSourceType.CAMERA_OCR)) },
                 onFailure = { trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure())) },
             )
+        }
+    }
+    val chooseRenewalAttachments = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        val renewalId = renewalAttachmentTargetId
+        renewalAttachmentTargetId = null
+        if (renewalId != null && uris.isNotEmpty()) {
+            coroutineScope.launch {
+                uris.forEach { uri ->
+                    val source = if (context.contentResolver.getType(uri)?.startsWith("image/") == true) {
+                        AttachmentSource.GALLERY
+                    } else {
+                        AttachmentSource.DOCUMENT
+                    }
+                    runCatching {
+                        application.attachmentStore.import(
+                            AttachmentImportRequest(
+                                owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, renewalId),
+                                sourceUri = uri,
+                                source = source,
+                            ),
+                        )
+                    }.onSuccess { attachment ->
+                        renewViewModel.onIntent(RenewIntent.AddAttachment(attachment))
+                    }.onFailure { error ->
+                        renewViewModel.onIntent(
+                            RenewIntent.AttachmentImportFailed(
+                                (error as? AttachmentException)?.error ?: AttachmentError.COPY_FAILED,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+    val captureRenewalPhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val renewalId = renewalAttachmentTargetId
+        val capture = renewalCapturePath?.let(::File)
+        renewalAttachmentTargetId = null
+        renewalCapturePath = null
+        if (renewalId != null && capture != null && saved) {
+            coroutineScope.launch {
+                try {
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
+                    val attachment = application.attachmentStore.import(
+                        AttachmentImportRequest(
+                            owner = AttachmentOwner(AttachmentOwnerType.RENEWAL, renewalId),
+                            sourceUri = uri,
+                            source = AttachmentSource.CAMERA,
+                            displayNameHint = resources.getString(R.string.renewal_photo_name),
+                            mimeTypeHint = "image/jpeg",
+                        ),
+                    )
+                    renewViewModel.onIntent(RenewIntent.AddAttachment(attachment))
+                } catch (error: Throwable) {
+                    renewViewModel.onIntent(
+                        RenewIntent.AttachmentImportFailed(
+                            (error as? AttachmentException)?.error ?: AttachmentError.COPY_FAILED,
+                        ),
+                    )
+                } finally {
+                    runCatching { application.attachmentStore.removeTemporaryCapture(capture) }
+                }
+            }
+        } else if (capture != null) {
+            runCatching { application.attachmentStore.removeTemporaryCapture(capture) }
         }
     }
 
@@ -177,6 +265,12 @@ fun EveryCueApp(
                     navigator.selectTopLevel(RenewHomeRoute)
                     snackbar.showSnackbar(resources.getString(R.string.renewal_deleted))
                 }
+                RenewEffect.AttachmentAdded -> snackbar.showSnackbar(
+                    resources.getString(com.everycue.feature.renew.R.string.attachment_added),
+                )
+                RenewEffect.AttachmentRemoved -> snackbar.showSnackbar(
+                    resources.getString(com.everycue.feature.renew.R.string.attachment_removed),
+                )
                 is RenewEffect.ShowError -> snackbar.showSnackbar(resources.getString(effect.messageResource))
             }
         }
@@ -253,7 +347,67 @@ fun EveryCueApp(
             onImportImage = { importLabelImage.launch("image/*") },
         )
         packEntryBuilder(packState, packViewModel, navigator)
-        renewEntryBuilder(renewState, renewViewModel, navigator)
+        renewEntryBuilder(
+            state = renewState,
+            viewModel = renewViewModel,
+            navigator = navigator,
+            onAddFiles = { renewalId ->
+                renewalAttachmentTargetId = renewalId
+                chooseRenewalAttachments.launch(
+                    arrayOf(
+                        "application/pdf",
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp",
+                        "image/heic",
+                        "image/heif",
+                        "text/plain",
+                    ),
+                )
+            },
+            onTakePhoto = { renewalId ->
+                runCatching {
+                    application.attachmentStore.createTemporaryCaptureFile()
+                }.onSuccess { capture ->
+                    renewalAttachmentTargetId = renewalId
+                    renewalCapturePath = capture.absolutePath
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
+                    captureRenewalPhoto.launch(uri)
+                }.onFailure { error ->
+                    renewViewModel.onIntent(
+                        RenewIntent.AttachmentImportFailed(
+                            (error as? AttachmentException)?.error ?: AttachmentError.COPY_FAILED,
+                        ),
+                    )
+                }
+            },
+            onViewAttachment = { attachment ->
+                openRenewalAttachment(
+                    attachment = attachment,
+                    application = application,
+                    context = context,
+                    chooserTitle = resources.getString(com.everycue.feature.renew.R.string.view_attachment_chooser),
+                    onFailure = {
+                        coroutineScope.launch {
+                            snackbar.showSnackbar(resources.getString(com.everycue.feature.renew.R.string.attachment_open_failed))
+                        }
+                    },
+                )
+            },
+            onShareAttachment = { attachment ->
+                shareRenewalAttachment(
+                    attachment = attachment,
+                    application = application,
+                    context = context,
+                    chooserTitle = resources.getString(com.everycue.feature.renew.R.string.share_attachment_chooser),
+                    onFailure = {
+                        coroutineScope.launch {
+                            snackbar.showSnackbar(resources.getString(com.everycue.feature.renew.R.string.attachment_share_failed))
+                        }
+                    },
+                )
+            },
+        )
         entry<SettingsRoute> {
             val track = trackState.value
             val pack = packState.value
@@ -309,9 +463,65 @@ fun EveryCueApp(
     }
 }
 
+private fun openRenewalAttachment(
+    attachment: RenewalAttachment,
+    application: EveryCueApplication,
+    context: android.content.Context,
+    chooserTitle: String,
+    onFailure: () -> Unit,
+) {
+    try {
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.files",
+            application.attachmentStore.contentFile(attachment.asLocalAttachment()),
+            attachment.displayName,
+        )
+        val view = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, attachment.mimeType)
+            clipData = ClipData.newUri(context.contentResolver, attachment.displayName, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(view, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        onFailure()
+    } catch (_: RuntimeException) {
+        onFailure()
+    }
+}
+
+private fun shareRenewalAttachment(
+    attachment: RenewalAttachment,
+    application: EveryCueApplication,
+    context: android.content.Context,
+    chooserTitle: String,
+    onFailure: () -> Unit,
+) {
+    try {
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.files",
+            application.attachmentStore.contentFile(attachment.asLocalAttachment()),
+            attachment.displayName,
+        )
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = attachment.mimeType
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newUri(context.contentResolver, attachment.displayName, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(send, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        onFailure()
+    } catch (_: RuntimeException) {
+        onFailure()
+    }
+}
+
 private fun VisionFailure.toSmartAddFailure(): SmartAddFailure = when (this) {
     VisionFailure.MODEL_UNAVAILABLE -> SmartAddFailure.MODEL_UNAVAILABLE
     VisionFailure.IMAGE_UNREADABLE -> SmartAddFailure.IMAGE_UNREADABLE
     VisionFailure.NO_RESULT -> SmartAddFailure.NO_RESULT
     VisionFailure.CANCELLED -> SmartAddFailure.CANCELLED
 }
+

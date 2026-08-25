@@ -61,9 +61,11 @@ import com.everycue.feature.pack.PackViewModel
 import com.everycue.feature.pack.packEntryBuilder
 import com.everycue.feature.renew.RenewHomeRoute
 import com.everycue.feature.renew.RenewDetailRoute
+import com.everycue.feature.renew.RenewEditorRoute
 import com.everycue.feature.renew.RenewViewModel
 import com.everycue.feature.renew.RenewEffect
 import com.everycue.feature.renew.RenewIntent
+import com.everycue.feature.renew.RenewCaptureFailure
 import com.everycue.feature.renew.RenewalAttachment
 import com.everycue.feature.renew.renewEntryBuilder
 import com.everycue.feature.track.TrackHomeRoute
@@ -124,6 +126,7 @@ fun EveryCueApp(
     val coroutineScope = rememberCoroutineScope()
     var renewalAttachmentTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var renewalCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var renewalOcrCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
     var trackLabelCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
     val currentRoute = navigationState.currentRoute
     val dismissKeyboard = rememberKeyboardDismissAction()
@@ -156,6 +159,38 @@ fun EveryCueApp(
             )
         } else {
             capture?.delete()
+        }
+    }
+    val importRenewalImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            vision.recognizeText(
+                uri = uri,
+                onResult = { renewViewModel.onIntent(RenewIntent.ApplyRecognizedText(it, ExtractionSourceType.IMAGE_OCR)) },
+                onFailure = { renewViewModel.onIntent(RenewIntent.CaptureFailed(it.toRenewCaptureFailure())) },
+            )
+        } else {
+            renewViewModel.onIntent(RenewIntent.CaptureFailed(RenewCaptureFailure.CANCELLED))
+        }
+    }
+    val captureRenewalDocument = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val capture = renewalOcrCapturePath?.let(::File)
+        renewalOcrCapturePath = null
+        if (capture != null && saved) {
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
+            vision.recognizeText(
+                uri = uri,
+                onResult = {
+                    capture.delete()
+                    renewViewModel.onIntent(RenewIntent.ApplyRecognizedText(it, ExtractionSourceType.CAMERA_OCR))
+                },
+                onFailure = {
+                    capture.delete()
+                    renewViewModel.onIntent(RenewIntent.CaptureFailed(it.toRenewCaptureFailure()))
+                },
+            )
+        } else {
+            capture?.delete()
+            renewViewModel.onIntent(RenewIntent.CaptureFailed(RenewCaptureFailure.CANCELLED))
         }
     }
     val chooseRenewalAttachments = rememberLauncherForActivityResult(
@@ -228,7 +263,12 @@ fun EveryCueApp(
 
     // Retained navigation entries can retain text-field focus. Never carry the IME to a
     // different screen, and also close it after Activity recreation/rotation.
-    LaunchedEffect(currentRoute, dismissKeyboard) { dismissKeyboard() }
+    LaunchedEffect(currentRoute, dismissKeyboard) {
+        dismissKeyboard()
+        if (currentRoute !is RenewEditorRoute) {
+            renewViewModel.onIntent(RenewIntent.ClearCaptureDraft)
+        }
+    }
 
     LaunchedEffect(trackViewModel, navigator, resources) {
         trackViewModel.effects.collect { effect ->
@@ -356,7 +396,7 @@ fun EveryCueApp(
                 )
             },
             onScanLabel = {
-                runCatching { createTrackLabelCapture(context.cacheDir) }
+                runCatching { createOcrCapture(context.cacheDir, "track_label_") }
                     .onSuccess { capture ->
                         trackLabelCapturePath = capture.absolutePath
                         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
@@ -403,6 +443,20 @@ fun EveryCueApp(
                     )
                 }
             },
+            onCaptureRenewal = {
+                runCatching { createOcrCapture(context.cacheDir, "renewal_document_") }
+                    .onSuccess { capture ->
+                        renewalOcrCapturePath = capture.absolutePath
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
+                        captureRenewalDocument.launch(uri)
+                    }
+                    .onFailure {
+                        renewViewModel.onIntent(
+                            RenewIntent.CaptureFailed(RenewCaptureFailure.IMAGE_UNREADABLE),
+                        )
+                    }
+            },
+            onImportRenewalImage = { importRenewalImage.launch(arrayOf("image/*")) },
             onViewAttachment = { attachment ->
                 openRenewalAttachment(
                     attachment = attachment,
@@ -540,10 +594,10 @@ private fun shareRenewalAttachment(
     }
 }
 
-private fun createTrackLabelCapture(cacheDir: File): File {
+private fun createOcrCapture(cacheDir: File, prefix: String): File {
     val captureDirectory = File(cacheDir, "everycue_captures")
     check(captureDirectory.exists() || captureDirectory.mkdirs())
-    return File.createTempFile("track_label_", ".jpg", captureDirectory)
+    return File.createTempFile(prefix, ".jpg", captureDirectory)
 }
 
 private fun VisionFailure.toSmartAddFailure(): SmartAddFailure = when (this) {
@@ -553,3 +607,9 @@ private fun VisionFailure.toSmartAddFailure(): SmartAddFailure = when (this) {
     VisionFailure.CANCELLED -> SmartAddFailure.CANCELLED
 }
 
+private fun VisionFailure.toRenewCaptureFailure(): RenewCaptureFailure = when (this) {
+    VisionFailure.MODEL_UNAVAILABLE -> RenewCaptureFailure.MODEL_UNAVAILABLE
+    VisionFailure.IMAGE_UNREADABLE -> RenewCaptureFailure.IMAGE_UNREADABLE
+    VisionFailure.NO_RESULT -> RenewCaptureFailure.NO_RESULT
+    VisionFailure.CANCELLED -> RenewCaptureFailure.CANCELLED
+}

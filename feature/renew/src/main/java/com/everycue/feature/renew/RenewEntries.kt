@@ -13,13 +13,18 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
     navigator: Navigator,
     onAddFiles: (String) -> Unit,
     onTakePhoto: (String) -> Unit,
+    onCaptureRenewal: () -> Unit,
+    onImportRenewalImage: () -> Unit,
     onViewAttachment: (RenewalAttachment) -> Unit,
     onShareAttachment: (RenewalAttachment) -> Unit,
 ) {
     entry<RenewHomeRoute> {
         RenewHomeScreen(
             state = state.value,
-            onAdd = { navigator.navigate(RenewEditorRoute()) },
+            onAdd = {
+                viewModel.onIntent(RenewIntent.ClearCaptureDraft)
+                navigator.navigate(RenewEditorRoute())
+            },
             onOpenAll = { navigator.navigate(RenewListRoute) },
             onOpenRenewal = { navigator.navigate(RenewDetailRoute(it)) },
             onOpenHistory = { navigator.navigate(RenewHistoryRoute) },
@@ -30,17 +35,27 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         RenewListScreen(
             renewals = state.value.renewals,
             onBack = { navigator.goBack() },
-            onAdd = { navigator.navigate(RenewEditorRoute()) },
+            onAdd = {
+                viewModel.onIntent(RenewIntent.ClearCaptureDraft)
+                navigator.navigate(RenewEditorRoute())
+            },
             onOpen = { navigator.navigate(RenewDetailRoute(it)) },
         )
     }
     entry<RenewEditorRoute> { route ->
         RenewEditorScreen(
             existing = route.renewalId?.let { id -> state.value.renewals.firstOrNull { it.id == id } },
-            onBack = { navigator.goBack() },
+            captureDraft = state.value.captureDraft,
+            onBack = {
+                viewModel.onIntent(RenewIntent.ClearCaptureDraft)
+                navigator.goBack()
+            },
             onSave = { draft ->
                 viewModel.onIntent(RenewIntent.Save(draft, route.renewalId))
             },
+            onCaptureRenewal = onCaptureRenewal,
+            onImportRenewalImage = onImportRenewalImage,
+            onClearCaptureDraft = { viewModel.onIntent(RenewIntent.ClearCaptureDraft) },
         )
     }
     entry<RenewDetailRoute> { route ->
@@ -49,7 +64,10 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
             item = item,
             attachments = state.value.attachmentsFor(route.renewalId),
             onBack = { navigator.goBack() },
-            onEdit = { navigator.navigate(RenewEditorRoute(route.renewalId)) },
+            onEdit = {
+                viewModel.onIntent(RenewIntent.ClearCaptureDraft)
+                navigator.navigate(RenewEditorRoute(route.renewalId))
+            },
             onRenew = { navigator.navigate(MarkRenewedRoute(route.renewalId)) },
             onDelete = {
                 navigator.navigate(
@@ -93,4 +111,3 @@ fun EntryProviderScope<NavKey>.renewEntryBuilder(
         )
     }
 }
-

@@ -41,5 +41,21 @@
     <string name="attachment_share_failed">This attachment could not be shared.</string>
     <string name="view_attachment_chooser">Open attachment</string>
     <string name="share_attachment_chooser">Share attachment</string>
+    <string name="renew_capture_title">Capture renewal details</string>
+    <string name="renew_capture_help">Scan a clear image on this device to suggest a title, type, provider, reference, and dates. Every suggestion must be reviewed before saving.</string>
+    <string name="renew_capture_camera">Take photo</string>
+    <string name="renew_capture_image">Import image</string>
+    <string name="renew_capture_source_camera">Photo text recognized on this device</string>
+    <string name="renew_capture_source_image">Image text recognized on this device</string>
+    <string name="renew_capture_source_other">Suggested renewal draft</string>
+    <string name="renew_capture_review_help">Compare every suggested value with the original document. Recognition can be incomplete or incorrect and never saves automatically.</string>
+    <string name="renew_capture_start_date">Recognized start date: %1$s</string>
+    <string name="renew_capture_due_missing">No reliable due date was found. Choose the correct date manually.</string>
+    <string name="renew_capture_confirm_review">I reviewed the suggestions</string>
+    <string name="renew_capture_clear">Clear suggestions</string>
+    <string name="renew_capture_review_required">Review and confirm the captured suggestions before saving.</string>
+    <string name="renew_capture_model_unavailable">On-device recognition is not ready. Try again after the model downloads, or enter the renewal manually.</string>
+    <string name="renew_capture_image_unreadable">That image could not be read. Choose a clearer image or enter the renewal manually.</string>
+    <string name="renew_capture_no_result">No supported renewal details were found. Use a clearer image or enter the details manually.</string>
+    <string name="renew_capture_cancelled">Renewal capture was cancelled. You can continue with manual entry.</string>
 </resources>
-

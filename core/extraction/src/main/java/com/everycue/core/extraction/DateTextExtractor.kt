@@ -20,19 +20,23 @@ object DateTextExtractor {
         LabelRule(ExtractedDateKind.BEST_BEFORE, Regex("\\b(?:best\\s+before|best\\s+by|bb)\\b", RegexOption.IGNORE_CASE)),
         LabelRule(ExtractedDateKind.USE_BY, Regex("\\b(?:use\\s+by|use\\s+before)\\b", RegexOption.IGNORE_CASE)),
         LabelRule(ExtractedDateKind.MANUFACTURED, Regex("\\b(?:mfg|mfd|manufactured|manufacturing)(?:\\s+date)?\\b", RegexOption.IGNORE_CASE)),
+        LabelRule(ExtractedDateKind.PURCHASED, Regex("\\b(?:purchased?|purchase)(?:\\s+date)?\\b", RegexOption.IGNORE_CASE)),
         LabelRule(ExtractedDateKind.START, Regex("\\b(?:start|issued|effective)(?:\\s+date)?\\b", RegexOption.IGNORE_CASE)),
         LabelRule(ExtractedDateKind.DUE, Regex("\\b(?:due|valid\\s+until|renew(?:al)?(?:\\s+date)?)\\b", RegexOption.IGNORE_CASE)),
         LabelRule(ExtractedDateKind.EXPIRY, Regex("\\b(?:exp|expiry|expires)(?:\\s+date)?\\b", RegexOption.IGNORE_CASE)),
     )
 
+    private const val MONTH_NAME =
+        "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+
     private val dateToken = Regex(
         pattern = """(?ix)
             (?:\d{4}[./-]\d{1,2}[./-]\d{1,2})
             |(?:\d{1,2}[./-]\d{1,2}[./-]\d{4})
-            |(?:\d{1,2}\s+[a-z]{3,9}\s+\d{4})
-            |(?:[a-z]{3,9}\s+\d{1,2},?\s+\d{4})
-            |(?:[a-z]{3,9}\s+\d{4})
-            |(?:\d{1,2}[./-]\d{4})
+            |(?:\d{1,2}\s+$MONTH_NAME\s+\d{4})
+            |(?:$MONTH_NAME\s+\d{1,2},?\s+\d{4})
+            |(?:$MONTH_NAME\s+\d{2,4})
+            |(?:\d{1,2}[./-]\d{2,4})
         """.trimIndent(),
     )
 
@@ -55,10 +59,21 @@ object DateTextExtractor {
         if (text.isBlank()) return DateExtractionResult(emptyList())
 
         val candidates = buildList {
-            text.lineSequence()
+            val lines = text.lineSequence()
                 .map(String::trim)
                 .filter(String::isNotBlank)
-                .forEach { line ->
+                .toList()
+            lines.forEachIndexed { lineIndex, originalLine ->
+                    // OCR commonly places the value on the line after a short label such as
+                    // "EXP". Include that adjacent line only when the label line has no date.
+                    val line = if (
+                        labelRules.any { it.regex.containsMatchIn(originalLine) } &&
+                        dateToken.find(originalLine) == null
+                    ) {
+                        "$originalLine ${lines.getOrNull(lineIndex + 1).orEmpty()}".trim()
+                    } else {
+                        originalLine
+                    }
                     val labels = labelRules.mapNotNull { rule ->
                         rule.regex.find(line)?.let { match -> rule to match.range.first }
                     }.sortedBy { it.second }
@@ -113,13 +128,13 @@ object DateTextExtractor {
                     val normalized = token.replace(",", "")
                     ParsedDate(LocalDate.parse(normalized, monthDayYear), DatePrecision.DAY, DateNormalizationRule.EXACT_DATE)
                 }
-                token.matches(Regex("[A-Za-z]{3,9}\\s+\\d{4}")) -> {
+                token.matches(Regex("[A-Za-z]{3,9}\\s+\\d{2,4}")) -> {
                     val parts = token.split(" ")
-                    monthDate(namedMonth(parts[0]), parts[1].toInt(), kind)
+                    monthDate(namedMonth(parts[0]), normalizeYear(parts[1].toInt()), kind)
                 }
-                token.matches(Regex("\\d{1,2}[./-]\\d{4}")) -> {
+                token.matches(Regex("\\d{1,2}[./-]\\d{2,4}")) -> {
                     val parts = token.split(Regex("[./-]"))
-                    monthDate(parts[0].toInt(), parts[1].toInt(), kind)
+                    monthDate(parts[0].toInt(), normalizeYear(parts[1].toInt()), kind)
                 }
                 else -> null
             }
@@ -148,4 +163,7 @@ object DateTextExtractor {
 
     private fun namedMonth(value: String): Int = namedMonths[value.lowercase(Locale.ROOT)]?.value
         ?: throw DateTimeException("Unsupported month")
+
+    private fun normalizeYear(value: Int): Int = if (value in 0..99) 2000 + value else value
 }
+

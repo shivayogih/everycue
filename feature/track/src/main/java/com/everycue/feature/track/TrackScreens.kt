@@ -576,20 +576,25 @@ fun TrackEditorScreen(
     var attemptedSubmit by rememberSaveable(existing?.id) { mutableStateOf(false) }
     var barcode by rememberSaveable(existing?.id) { mutableStateOf(existing?.barcode) }
     var expiryConfirmed by rememberSaveable(existing?.id) { mutableStateOf(existing != null || smartDraft == null) }
+    var smartAddReviewed by rememberSaveable(existing?.id) { mutableStateOf(existing != null || smartDraft == null) }
     val scrollState = rememberScrollState()
     val dismissKeyboard = rememberKeyboardDismissAction()
 
     LaunchedEffect(smartDraft?.token, existing?.id) {
         if (existing == null && smartDraft != null) {
+            smartAddReviewed = false
+            // A barcode or OCR result cannot establish the physical item's expiry with
+            // certainty. Always require an explicit date review, even when no date was found.
+            expiryConfirmed = false
             smartDraft.productName?.value?.let { name = it.take(80) }
             smartDraft.categoryName?.value?.let { value ->
                 runCatching { TrackCategory.valueOf(value) }.getOrNull()?.let { categoryName = it.name }
             }
-            smartDraft.quantity?.value?.let { quantity = it.toString() }
+            smartDraft.quantity?.value?.let { quantity = it.toEditableNumber() }
+            smartDraft.unit?.value?.let { unit = it.take(20) }
             smartDraft.purchaseDate?.field?.value?.let { purchaseEpochDay = it.toEpochDay() }
             smartDraft.expiryDate?.field?.value?.let {
                 expiryEpochDay = it.toEpochDay()
-                expiryConfirmed = false
             }
             smartDraft.storageLocation?.value?.let { location = it.take(100) }
             smartDraft.notes?.value?.let { notes = it.take(500) }
@@ -625,7 +630,7 @@ fun TrackEditorScreen(
                 Button(
                     onClick = {
                         attemptedSubmit = true
-                        if (validation.isValid && expiryConfirmed) {
+                        if (validation.isValid && expiryConfirmed && smartAddReviewed) {
                             dismissKeyboard()
                             onSave(candidate)
                         }
@@ -677,7 +682,34 @@ fun TrackEditorScreen(
                             if (draft.possibleDuplicateIds.isNotEmpty()) {
                                 Text(stringResource(R.string.possible_duplicate), color = MaterialTheme.colorScheme.error)
                             }
-                            TextButton(onClick = onClearSmartAdd) { Text(stringResource(R.string.clear_smart_add)) }
+                            draft.barcode?.value?.let { value ->
+                                Text(stringResource(R.string.scanned_barcode_value, value), fontWeight = FontWeight.Medium)
+                            }
+                            Text(stringResource(R.string.smart_add_review_help), style = MaterialTheme.typography.bodySmall)
+                            if (!smartAddReviewed) {
+                                Button(onClick = { smartAddReviewed = true }) {
+                                    Text(stringResource(R.string.confirm_smart_add_review))
+                                }
+                            }
+                            if (attemptedSubmit && !smartAddReviewed) {
+                                Text(stringResource(R.string.smart_add_review_required), color = MaterialTheme.colorScheme.error)
+                            }
+                            TextButton(
+                                onClick = {
+                                    name = ""
+                                    categoryName = TrackCategory.GROCERY.name
+                                    quantity = "1"
+                                    unit = defaultUnit
+                                    purchaseEpochDay = null
+                                    expiryEpochDay = LocalDate.now().plusDays(7).toEpochDay()
+                                    location = ""
+                                    notes = ""
+                                    smartAddReviewed = true
+                                    expiryConfirmed = true
+                                    barcode = null
+                                    onClearSmartAdd()
+                                },
+                            ) { Text(stringResource(R.string.clear_smart_add)) }
                         }
                     }
                 }
@@ -793,6 +825,9 @@ private fun String.toDecimalInput(maxLength: Int): String {
         character.isDigit() || (character == '.' && !decimalSeen.also { decimalSeen = true })
     }.take(maxLength)
 }
+
+private fun Double.toEditableNumber(): String =
+    if (isFinite() && this % 1.0 == 0.0) toLong().toString() else toString()
 
 @Composable
 private fun DateCard(label: String, value: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -1012,3 +1047,4 @@ fun TrackConfirmDialog(
         icon = if (destructive) ({ Icon(Icons.Default.Delete, contentDescription = null) }) else null,
     )
 }
+

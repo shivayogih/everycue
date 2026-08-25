@@ -124,11 +124,12 @@ fun EveryCueApp(
     val coroutineScope = rememberCoroutineScope()
     var renewalAttachmentTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var renewalCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var trackLabelCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
     val currentRoute = navigationState.currentRoute
     val dismissKeyboard = rememberKeyboardDismissAction()
     val vision = remember(context) { OnDeviceVision(context) }
     DisposableEffect(vision) { onDispose(vision::close) }
-    val importLabelImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val importLabelImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             vision.recognizeText(
                 uri = uri,
@@ -137,13 +138,24 @@ fun EveryCueApp(
             )
         }
     }
-    val captureLabel = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-        if (bitmap != null) {
+    val captureLabel = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val capture = trackLabelCapturePath?.let(::File)
+        trackLabelCapturePath = null
+        if (capture != null && saved) {
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
             vision.recognizeText(
-                bitmap = bitmap,
-                onResult = { trackViewModel.onIntent(TrackIntent.ApplyRecognizedText(it, ExtractionSourceType.CAMERA_OCR)) },
-                onFailure = { trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure())) },
+                uri = uri,
+                onResult = {
+                    capture.delete()
+                    trackViewModel.onIntent(TrackIntent.ApplyRecognizedText(it, ExtractionSourceType.CAMERA_OCR))
+                },
+                onFailure = {
+                    capture.delete()
+                    trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure()))
+                },
             )
+        } else {
+            capture?.delete()
         }
     }
     val chooseRenewalAttachments = rememberLauncherForActivityResult(
@@ -343,8 +355,18 @@ fun EveryCueApp(
                     onFailure = { trackViewModel.onIntent(TrackIntent.SmartAddFailed(it.toSmartAddFailure())) },
                 )
             },
-            onScanLabel = { captureLabel.launch(null) },
-            onImportImage = { importLabelImage.launch("image/*") },
+            onScanLabel = {
+                runCatching { createTrackLabelCapture(context.cacheDir) }
+                    .onSuccess { capture ->
+                        trackLabelCapturePath = capture.absolutePath
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", capture)
+                        captureLabel.launch(uri)
+                    }
+                    .onFailure {
+                        trackViewModel.onIntent(TrackIntent.SmartAddFailed(SmartAddFailure.IMAGE_UNREADABLE))
+                    }
+            },
+            onImportImage = { importLabelImage.launch(arrayOf("image/*")) },
         )
         packEntryBuilder(packState, packViewModel, navigator)
         renewEntryBuilder(
@@ -516,6 +538,12 @@ private fun shareRenewalAttachment(
     } catch (_: RuntimeException) {
         onFailure()
     }
+}
+
+private fun createTrackLabelCapture(cacheDir: File): File {
+    val captureDirectory = File(cacheDir, "everycue_captures")
+    check(captureDirectory.exists() || captureDirectory.mkdirs())
+    return File.createTempFile("track_label_", ".jpg", captureDirectory)
 }
 
 private fun VisionFailure.toSmartAddFailure(): SmartAddFailure = when (this) {

@@ -75,14 +75,23 @@ class TrackViewModel(private val repository: TrackStore) : ViewModel() {
                 effectChannel.send(TrackEffect.Deleted)
             }
             is TrackIntent.ApplyRecognizedText -> {
-                smartAddDraft.value = SmartAddTextExtractor.extract(
+                val draft = SmartAddTextExtractor.extract(
                     text = intent.text,
                     sourceType = intent.sourceType,
                     token = System.nanoTime(),
                 )
+                if (draft.productName != null || draft.quantity != null || draft.expiryDate != null) {
+                    smartAddDraft.value = draft
+                } else {
+                    onIntent(TrackIntent.SmartAddFailed(SmartAddFailure.NO_RESULT))
+                }
             }
             is TrackIntent.ApplyBarcode -> {
                 val normalized = intent.value.trim()
+                if (normalized.isEmpty() || normalized.length > 256 || normalized.any(Char::isISOControl)) {
+                    onIntent(TrackIntent.SmartAddFailed(SmartAddFailure.NO_RESULT))
+                    return
+                }
                 val matches = state.value.items.filter { it.barcode == normalized }
                 val known = matches.firstOrNull()
                 smartAddDraft.value = SmartAddTextExtractor.fromBarcode(
@@ -160,3 +169,4 @@ class TrackViewModel(private val repository: TrackStore) : ViewModel() {
         }
     }
 }
+

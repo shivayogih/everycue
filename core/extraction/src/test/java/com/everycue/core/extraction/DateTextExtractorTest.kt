@@ -42,4 +42,22 @@ class DateTextExtractorTest {
         assertTrue(result.expiryCandidates.isEmpty())
         assertEquals(listOf(ExtractedDateKind.MANUFACTURED), result.dates.map { it.kind })
     }
+
+    @Test
+    fun `reads a split OCR expiry label and two digit year`() {
+        val result = DateTextExtractor.extract("LOT A17\nEXP\n09/27")
+
+        assertEquals(LocalDate.of(2027, 9, 30), result.expiryCandidates.single().field.value)
+        assertEquals(DateNormalizationRule.END_OF_MONTH, result.expiryCandidates.single().normalizationRule)
+    }
+
+    @Test
+    fun `keeps a labeled purchase date separate from expiry`() {
+        val result = DateTextExtractor.extract("Purchase date: 02/08/2026\nBest before: 11/2026")
+
+        assertEquals(ExtractedDateKind.PURCHASED, result.dates[0].kind)
+        assertEquals(LocalDate.of(2026, 8, 2), result.dates[0].field.value)
+        assertEquals(LocalDate.of(2026, 11, 30), result.expiryCandidates.single().field.value)
+    }
 }
+

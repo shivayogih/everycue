@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
                 ThemePreference.DARK -> true
             }
 
-            EveryCueTheme(darkTheme = darkTheme, dynamicColor = settingsState.settings.dynamicColor) {
+            EveryCueTheme(darkTheme = darkTheme) {
                 if (!profileState.isLoaded) {
                     ProfileLoadingScreen()
                 } else if (profileState.profile == null) {

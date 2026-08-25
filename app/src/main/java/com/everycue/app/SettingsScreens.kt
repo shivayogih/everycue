@@ -132,11 +132,6 @@ fun SettingsScreen(
                                 leadingContent = { RadioButton(settings.theme == value, { onIntent(SettingsIntent.SetTheme(value)) }) },
                             )
                         }
-                        ListItem(
-                            headlineContent = { Text(stringResource(R.string.device_colors)) },
-                            supportingContent = { Text(stringResource(R.string.device_colors_summary)) },
-                            trailingContent = { Switch(settings.dynamicColor, { onIntent(SettingsIntent.SetDynamicColor(it)) }) },
-                        )
                     }
                 }
             }

@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object TrackHistoryRoute : NavKey
 @Serializable data object TrackInsightsRoute : NavKey
 @Serializable data object TrackUseNextRoute : NavKey
+@Serializable data object TrackWasteCoachRoute : NavKey
 @Serializable data class TrackEditorRoute(val itemId: String? = null) : NavKey
 @Serializable data class TrackDetailRoute(val itemId: String) : NavKey
 @Serializable data class TrackOutcomeDialogRoute(val itemId: String, val outcome: TrackOutcome) : NavKey

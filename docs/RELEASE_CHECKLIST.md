@@ -11,8 +11,9 @@
 - CI size ceiling: release APK and AAB must each remain at or below 12 MiB
 - Phase 1 extraction tests: invalid dates, multiple labeled dates, and month/year normalization
 - Phase 1 attachment tests: MIME allowlist, 20 MiB bound, filename sanitization, and owned-path enforcement
-- Room 1→2 migration retains Track/Renew data and adds an optional encrypted barcode field
+- Room 1→2→3 migrations retain Track/Renew data, add an optional encrypted barcode, preserve outcome category evidence, and add local coaching preferences
 - Use Next tests: expired-item exclusion, deterministic ordering, stable ties, and structured reason codes
+- Waste Coach tests: evidence thresholds, 30/90/365-day summaries, rising trends, deterministic reasons, and hide/dismiss filtering
 
 ## Manual device gate
 
@@ -32,6 +33,7 @@
 - Confirm discarded camera captures are removed and attachment removal leaves the original gallery/document file intact
 - Test Smart Add before and after Google Play services model download; verify cancellation and model failure return to manual entry
 - Verify Use Next never displays an expired item, explains every ranking, preserves category filters across rotation, and opens the correct item detail
+- Verify Waste Coach stays silent below thresholds, never estimates money without price data, updates after outcomes, and persists dismiss/mute/restore controls after restart
 
 ## Play Console gate
 

@@ -22,6 +22,10 @@ sealed interface TrackIntent {
     data class ApplyBarcode(val value: String) : TrackIntent
     data object ClearSmartAdd : TrackIntent
     data class SmartAddFailed(val failure: SmartAddFailure) : TrackIntent
+    data class DismissCoachInsight(val insightKey: String) : TrackIntent
+    data class HideCoachSubject(val subjectId: String) : TrackIntent
+    data class HideCoachCategory(val category: String) : TrackIntent
+    data class RestoreCoachPreference(val key: String) : TrackIntent
 }
 
 enum class SmartAddFailure { CANCELLED, MODEL_UNAVAILABLE, IMAGE_UNREADABLE, NO_RESULT }
@@ -39,8 +43,20 @@ class TrackViewModel(private val repository: TrackStore) : ViewModel() {
     private val effectChannel = Channel<TrackEffect>(Channel.BUFFERED)
     val effects = effectChannel.receiveAsFlow()
 
-    val state = combine(repository.items, repository.events, busy, smartAddDraft) { items, events, isBusy, draft ->
-        TrackUiState(items = items, events = events, isBusy = isBusy, smartAddDraft = draft)
+    val state = combine(
+        repository.items,
+        repository.events,
+        repository.coachPreferences,
+        busy,
+        smartAddDraft,
+    ) { items, events, preferences, isBusy, draft ->
+        TrackUiState(
+            items = items,
+            events = events,
+            isBusy = isBusy,
+            smartAddDraft = draft,
+            coachPreferences = preferences,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TrackUiState())
 
     fun onIntent(intent: TrackIntent) {
@@ -90,7 +106,36 @@ class TrackViewModel(private val repository: TrackStore) : ViewModel() {
                     effectChannel.send(TrackEffect.ShowError(message))
                 }
             }
+            is TrackIntent.DismissCoachInsight -> saveCoachPreference(
+                key = "insight:${intent.insightKey}",
+                type = TrackCoachPreferenceType.DISMISSED_INSIGHT,
+                value = intent.insightKey,
+            )
+            is TrackIntent.HideCoachSubject -> saveCoachPreference(
+                key = "subject:${intent.subjectId}",
+                type = TrackCoachPreferenceType.HIDDEN_SUBJECT,
+                value = intent.subjectId,
+            )
+            is TrackIntent.HideCoachCategory -> saveCoachPreference(
+                key = "category:${intent.category}",
+                type = TrackCoachPreferenceType.HIDDEN_CATEGORY,
+                value = intent.category,
+            )
+            is TrackIntent.RestoreCoachPreference -> execute {
+                repository.removeCoachPreference(intent.key)
+            }
         }
+    }
+
+    private fun saveCoachPreference(key: String, type: TrackCoachPreferenceType, value: String) = execute {
+        repository.saveCoachPreference(
+            TrackCoachPreference(
+                key = key,
+                type = type,
+                value = value,
+                createdAtMillis = System.currentTimeMillis(),
+            ),
+        )
     }
 
     private fun execute(block: suspend () -> Unit) {
